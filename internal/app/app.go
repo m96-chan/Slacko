@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ type App struct {
 	Config *config.Config
 	tview  *tview.Application
 	slack  *slackclient.Client
+	cancel context.CancelFunc
 }
 
 // New creates a new App with the given config.
@@ -68,12 +70,45 @@ func (a *App) showLogin() {
 	a.tview.SetRoot(form, true)
 }
 
-// showMain sets the root to the main view. Currently a placeholder that
-// displays the authenticated identity.
+// showMain sets the root to the main view and starts Socket Mode in the
+// background. Currently a placeholder that displays the authenticated identity
+// and connection status.
 func (a *App) showMain() {
+	// Cancel any previous Socket Mode connection.
+	if a.cancel != nil {
+		a.cancel()
+	}
+
 	text := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
-		SetText(fmt.Sprintf("authenticated as %s (%s)", a.slack.UserName, a.slack.TeamName))
+		SetText(fmt.Sprintf("authenticated as %s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 
 	a.tview.SetRoot(text, true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancel = cancel
+
+	handler := &slackclient.EventHandler{
+		OnConnected: func() {
+			slog.Info("socket mode connected")
+			a.tview.QueueUpdateDraw(func() {
+				text.SetText(fmt.Sprintf("authenticated as %s (%s) — connected", a.slack.UserName, a.slack.TeamName))
+			})
+		},
+		OnDisconnected: func() {
+			slog.Warn("socket mode disconnected")
+			a.tview.QueueUpdateDraw(func() {
+				text.SetText(fmt.Sprintf("authenticated as %s (%s) — disconnected", a.slack.UserName, a.slack.TeamName))
+			})
+		},
+		OnError: func(err error) {
+			slog.Error("socket mode error", "error", err)
+		},
+	}
+
+	go func() {
+		if err := a.slack.RunSocketMode(ctx, handler); err != nil {
+			slog.Error("socket mode exited", "error", err)
+		}
+	}()
 }
