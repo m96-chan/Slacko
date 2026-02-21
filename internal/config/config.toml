@@ -1,5 +1,140 @@
 mouse = true
 editor = "default"
-timestamps_enabled = true
-timestamps_format = "3:04PM"
+auto_focus = true
+show_attachment_links = true
+autocomplete_limit = 10
 messages_limit = 50
+
+[markdown]
+enabled = true
+
+[timestamps]
+enabled = true
+format = "3:04PM"
+
+[date_separator]
+enabled = true
+character = "─"
+
+[notifications]
+enabled = true
+
+[notifications.sound]
+enabled = false
+
+[typing_indicator]
+enabled = true
+
+[threads]
+show_inline = false
+
+[presence]
+enabled = true
+
+[keybinds]
+focus_channels = "Rune[1]"
+focus_messages = "Rune[2]"
+focus_input = "Rune[3]"
+toggle_thread = "Rune[t]"
+quit = "Ctrl+C"
+help = "Rune[?]"
+switch_team = "Ctrl+T"
+command_mode = "Rune[:]"
+
+[keybinds.channels_tree]
+up = "Rune[k]"
+down = "Rune[j]"
+top = "Rune[g]"
+bottom = "Rune[G]"
+select_current = "Enter"
+collapse = "Rune[c]"
+move_to_parent = "Rune[p]"
+
+[keybinds.messages_list]
+select_current = "Enter"
+scroll_up = "Rune[k]"
+scroll_down = "Rune[j]"
+reply = "Rune[r]"
+edit = "Rune[e]"
+delete = "Rune[d]"
+reactions = "Rune[+]"
+thread = "Rune[t]"
+yank = "Rune[y]"
+cancel = "Escape"
+
+[keybinds.message_input]
+send = "Enter"
+newline = "Shift+Enter"
+tab_complete = "Tab"
+open_editor = "Ctrl+E"
+open_file_picker = "Ctrl+F"
+paste = "Ctrl+V"
+cancel = "Escape"
+
+[keybinds.thread_view]
+up = "Rune[k]"
+down = "Rune[j]"
+reply = "Rune[r]"
+close = "Escape"
+
+[theme]
+
+[theme.border]
+[theme.border.focused]
+foreground = "blue"
+
+[theme.border.normal]
+foreground = "gray"
+
+[theme.title]
+[theme.title.focused]
+foreground = "white"
+attributes = "bold"
+
+[theme.title.normal]
+foreground = "gray"
+
+[theme.channels_tree]
+[theme.channels_tree.channel]
+foreground = "white"
+
+[theme.channels_tree.selected]
+foreground = "blue"
+attributes = "bold"
+
+[theme.channels_tree.unread]
+foreground = "white"
+attributes = "bold"
+
+[theme.messages_list]
+[theme.messages_list.message]
+foreground = "white"
+
+[theme.messages_list.author]
+foreground = "green"
+attributes = "bold"
+
+[theme.messages_list.timestamp]
+foreground = "gray"
+
+[theme.messages_list.selected]
+foreground = "white"
+attributes = "reverse"
+
+[theme.messages_list.reply]
+foreground = "cyan"
+
+[theme.message_input]
+[theme.message_input.text]
+foreground = "white"
+
+[theme.message_input.placeholder]
+foreground = "gray"
+attributes = "dim"
+
+[theme.status_bar]
+[theme.status_bar.text]
+foreground = "white"
+
+[theme.status_bar.background]
+background = "blue"
