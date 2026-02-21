@@ -281,7 +281,7 @@ All keybindings are customizable in `config.toml` under the `[keybinds]` section
 ```
 slacko/
 ├── cmd/                        # CLI entry point
-│   └── root.go                 # Cobra root command with flags
+│   └── root.go                 # CLI flags and entry point
 ├── internal/
 │   ├── app/                    # Application lifecycle
 │   │   └── app.go
@@ -335,7 +335,7 @@ slacko/
 | [alecthomas/chroma](https://github.com/alecthomas/chroma) | Syntax highlighting |
 | [sahilm/fuzzy](https://github.com/sahilm/fuzzy) | Fuzzy search |
 | [zalando/go-keyring](https://github.com/zalando/go-keyring) | Secure token storage |
-| [spf13/cobra](https://github.com/spf13/cobra) | CLI framework |
+| [flag](https://pkg.go.dev/flag) (stdlib) | CLI flag parsing |
 
 ## Contributing
 

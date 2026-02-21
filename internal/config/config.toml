@@ -1,0 +1,5 @@
+mouse = true
+editor = "default"
+timestamps_enabled = true
+timestamps_format = "3:04PM"
+messages_limit = 50
