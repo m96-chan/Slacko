@@ -30,14 +30,14 @@ type ChannelInfoData struct {
 // ChannelInfoPanel is a modal panel that displays channel details.
 type ChannelInfoPanel struct {
 	*tview.Flex
-	cfg        *config.Config
-	content    *tview.TextView
-	status     *tview.TextView
-	data       ChannelInfoData
-	onClose    func()
-	onSetTopic func(channelID string)
+	cfg          *config.Config
+	content      *tview.TextView
+	status       *tview.TextView
+	data         ChannelInfoData
+	onClose      func()
+	onSetTopic   func(channelID string)
 	onSetPurpose func(channelID string)
-	onLeave    func(channelID string)
+	onLeave      func(channelID string)
 }
 
 // NewChannelInfoPanel creates a new channel info panel component.

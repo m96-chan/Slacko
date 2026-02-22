@@ -10,11 +10,11 @@ import (
 
 func TestMessageSubTypeRouting(t *testing.T) {
 	tests := []struct {
-		name            string
-		subType         string
-		wantNew         bool
-		wantChanged     bool
-		wantDeleted     bool
+		name        string
+		subType     string
+		wantNew     bool
+		wantChanged bool
+		wantDeleted bool
 	}{
 		{"new message", "", true, false, false},
 		{"message_changed", "message_changed", false, true, false},
@@ -77,7 +77,11 @@ func TestTypedCallbacksInvoked(t *testing.T) {
 		OnPinAdded:            func(*slackevents.PinAddedEvent) { mu.Lock(); called["pin_added"] = true; mu.Unlock() },
 		OnPinRemoved:          func(*slackevents.PinRemovedEvent) { mu.Lock(); called["pin_removed"] = true; mu.Unlock() },
 		OnFileShared:          func(*slackevents.FileSharedEvent) { mu.Lock(); called["file_shared"] = true; mu.Unlock() },
-		OnUserStatusChanged:   func(*slackevents.UserStatusChangedEvent) { mu.Lock(); called["user_status_changed"] = true; mu.Unlock() },
+		OnUserStatusChanged: func(*slackevents.UserStatusChangedEvent) {
+			mu.Lock()
+			called["user_status_changed"] = true
+			mu.Unlock()
+		},
 	}
 
 	tests := []struct {

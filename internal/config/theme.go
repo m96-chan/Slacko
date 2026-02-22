@@ -20,13 +20,6 @@ type StyleWrapper struct {
 	attrStr string // tview attribute chars, e.g. "b", "du"
 }
 
-// styleTable is the intermediate representation used for TOML unmarshalling.
-type styleTable struct {
-	Foreground string `toml:"foreground"`
-	Background string `toml:"background"`
-	Attributes string `toml:"attributes"`
-}
-
 // UnmarshalTOML implements the toml.Unmarshaler interface.
 func (s *StyleWrapper) UnmarshalTOML(data any) error {
 	m, ok := data.(map[string]any)
@@ -81,20 +74,8 @@ func (s StyleWrapper) Tag() string {
 
 // Reset returns the tview tag that resets all inline styles.
 func (s StyleWrapper) Reset() string {
-	fg := s.fgStr
-	if fg == "" {
-		fg = "-"
-	}
-	bg := s.bgStr
-	if bg == "" {
-		bg = "-"
-	}
-	attr := s.attrStr
-	if attr == "" {
-		attr = "-"
-	}
 	// Build a reset that undoes exactly what Tag() set.
-	if bg == "-" && attr == "-" {
+	if s.bgStr == "" && s.attrStr == "" {
 		return "[-]"
 	}
 	return "[-::-]"

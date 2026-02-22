@@ -19,13 +19,13 @@ type WorkspaceEntry struct {
 // WorkspacePicker is a modal for selecting a workspace.
 type WorkspacePicker struct {
 	*tview.Flex
-	cfg        *config.Config
-	list       *tview.List
-	status     *tview.TextView
-	entries    []WorkspaceEntry
-	currentID  string
-	onSelect   func(workspaceID string)
-	onClose    func()
+	cfg       *config.Config
+	list      *tview.List
+	status    *tview.TextView
+	entries   []WorkspaceEntry
+	currentID string
+	onSelect  func(workspaceID string)
+	onClose   func()
 }
 
 // NewWorkspacePicker creates a new workspace picker.

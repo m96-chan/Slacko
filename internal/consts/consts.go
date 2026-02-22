@@ -15,5 +15,5 @@ func init() {
 		dir = os.TempDir()
 	}
 	CacheDir = filepath.Join(dir, Name)
-	os.MkdirAll(CacheDir, 0o700)
+	_ = os.MkdirAll(CacheDir, 0o700)
 }

@@ -24,15 +24,15 @@ type Config struct {
 	MessagesLimit       int    `toml:"messages_limit"`
 	DownloadDir         string `toml:"download_dir"`
 
-	AsciiIcons      bool            `toml:"ascii_icons"`
+	AsciiIcons bool `toml:"ascii_icons"`
 
-	Markdown       MarkdownConfig  `toml:"markdown"`
-	Timestamps     Timestamps      `toml:"timestamps"`
-	DateSeparator  DateSeparator   `toml:"date_separator"`
-	Notifications  Notifications   `toml:"notifications"`
+	Markdown        MarkdownConfig  `toml:"markdown"`
+	Timestamps      Timestamps      `toml:"timestamps"`
+	DateSeparator   DateSeparator   `toml:"date_separator"`
+	Notifications   Notifications   `toml:"notifications"`
 	TypingIndicator TypingIndicator `toml:"typing_indicator"`
-	Threads        Threads         `toml:"threads"`
-	Presence       Presence        `toml:"presence"`
+	Threads         Threads         `toml:"threads"`
+	Presence        Presence        `toml:"presence"`
 
 	Keybinds Keybinds `toml:"keybinds"`
 	Theme    Theme    `toml:"theme"`

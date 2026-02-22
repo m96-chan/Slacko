@@ -24,6 +24,10 @@ issues:
     - source: "^//go:generate "
       linters:
         - typecheck
+    - path: main\.go
+      text: "var `(version|commit|date)` is unused"
+      linters:
+        - unused
   exclude-generated: strict
 
 output:

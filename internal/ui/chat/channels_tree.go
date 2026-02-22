@@ -40,13 +40,13 @@ type OnCopyChannelIDFunc func(channelID string)
 // ChannelsTree is a tree view that categorises channels into sections.
 type ChannelsTree struct {
 	*tview.TreeView
-	cfg            *config.Config
-	root           *tview.TreeNode
-	sections       map[ChannelType]*tview.TreeNode
-	nodeIndex      map[string]*tview.TreeNode  // channelID → node
-	channelIDs     map[*tview.TreeNode]string  // node → channelID (reverse)
-	unreadCounts   map[string]int              // channelID → unread count
-	onSelected     OnChannelSelectedFunc
+	cfg             *config.Config
+	root            *tview.TreeNode
+	sections        map[ChannelType]*tview.TreeNode
+	nodeIndex       map[string]*tview.TreeNode // channelID → node
+	channelIDs      map[*tview.TreeNode]string // node → channelID (reverse)
+	unreadCounts    map[string]int             // channelID → unread count
+	onSelected      OnChannelSelectedFunc
 	onCopyChannelID OnCopyChannelIDFunc
 }
 

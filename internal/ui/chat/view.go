@@ -23,58 +23,58 @@ const (
 // View is the main chat layout containing all panels.
 type View struct {
 	*tview.Pages
-	app        *tview.Application
-	cfg        *config.Config
-	StatusBar  *StatusBar
+	app       *tview.Application
+	cfg       *config.Config
+	StatusBar *StatusBar
 
-	ChannelsTree    *ChannelsTree
-	Header          *tview.TextView
-	MessagesList    *MessagesList
-	MessageInput    *MessageInput
-	MentionsList    *MentionsList
-	ThreadView      *ThreadView
-	ChannelsPicker  *ChannelsPicker
-	ReactionsPicker *ReactionsPicker
-	FilePicker      *FilePicker
-	SearchPicker    *SearchPicker
+	ChannelsTree     *ChannelsTree
+	Header           *tview.TextView
+	MessagesList     *MessagesList
+	MessageInput     *MessageInput
+	MentionsList     *MentionsList
+	ThreadView       *ThreadView
+	ChannelsPicker   *ChannelsPicker
+	ReactionsPicker  *ReactionsPicker
+	FilePicker       *FilePicker
+	SearchPicker     *SearchPicker
 	PinsPicker       *PinsPicker
 	StarredPicker    *StarredPicker
 	UserProfilePanel *UserProfilePanel
-	ChannelInfoPanel  *ChannelInfoPanel
-	CommandBar        *CommandBar
-	WorkspacePicker   *WorkspacePicker
+	ChannelInfoPanel *ChannelInfoPanel
+	CommandBar       *CommandBar
+	WorkspacePicker  *WorkspacePicker
 
-	outerFlex        *tview.Flex
-	contentFlex      *tview.Flex
-	mainFlex         *tview.Flex
-	pickerModal      tview.Primitive
-	reactionModal    tview.Primitive
-	fileModal         tview.Primitive
-	searchModal       tview.Primitive
-	pinsModal         tview.Primitive
-	starredModal      tview.Primitive
-	userProfileModal  tview.Primitive
-	channelInfoModal  tview.Primitive
-	workspaceModal    tview.Primitive
-	activePanel       Panel
-	onMarkRead        func()
-	onMarkAllRead     func()
-	onPinnedMessages  func()
-	onStarredItems    func()
-	onChannelInfo     func()
-	channelsVisible   bool
-	threadVisible     bool
-	pickerVisible     bool
-	reactionVisible   bool
-	filePickerVisible bool
-	searchVisible     bool
-	pinsVisible       bool
+	outerFlex          *tview.Flex
+	contentFlex        *tview.Flex
+	mainFlex           *tview.Flex
+	pickerModal        tview.Primitive
+	reactionModal      tview.Primitive
+	fileModal          tview.Primitive
+	searchModal        tview.Primitive
+	pinsModal          tview.Primitive
+	starredModal       tview.Primitive
+	userProfileModal   tview.Primitive
+	channelInfoModal   tview.Primitive
+	workspaceModal     tview.Primitive
+	activePanel        Panel
+	onMarkRead         func()
+	onMarkAllRead      func()
+	onPinnedMessages   func()
+	onStarredItems     func()
+	onChannelInfo      func()
+	channelsVisible    bool
+	threadVisible      bool
+	pickerVisible      bool
+	reactionVisible    bool
+	filePickerVisible  bool
+	searchVisible      bool
+	pinsVisible        bool
 	starredVisible     bool
 	userProfileVisible bool
 	channelInfoVisible bool
-	commandBarVisible   bool
-	workspaceVisible    bool
-	onSwitchWorkspace   func(workspaceID string)
+	commandBarVisible  bool
+	workspaceVisible   bool
+	onSwitchWorkspace  func(workspaceID string)
 }
 
 // New creates the main chat view with the full flex layout.

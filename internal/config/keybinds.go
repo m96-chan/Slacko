@@ -14,23 +14,23 @@ type Keybinds struct {
 	Help           string `toml:"help"`
 	SwitchTeam     string `toml:"switch_team"`
 	CommandMode    string `toml:"command_mode"`
-	MarkRead        string `toml:"mark_read"`
-	MarkAllRead     string `toml:"mark_all_read"`
-	PinnedMessages  string `toml:"pinned_messages"`
-	StarredItems    string `toml:"starred_items"`
-	ChannelInfo     string `toml:"channel_info"`
+	MarkRead       string `toml:"mark_read"`
+	MarkAllRead    string `toml:"mark_all_read"`
+	PinnedMessages string `toml:"pinned_messages"`
+	StarredItems   string `toml:"starred_items"`
+	ChannelInfo    string `toml:"channel_info"`
 
-	ChannelsTree   ChannelsTreeKeybinds   `toml:"channels_tree"`
-	MessagesList   MessagesListKeybinds   `toml:"messages_list"`
-	MessageInput   MessageInputKeybinds   `toml:"message_input"`
-	ThreadView     ThreadViewKeybinds     `toml:"thread_view"`
-	ChannelsPicker ChannelsPickerKeybinds `toml:"channels_picker"`
-	FilePicker     FilePickerKeybinds     `toml:"file_picker"`
-	SearchPicker   SearchPickerKeybinds   `toml:"search_picker"`
-	PinsPicker        PinsPickerKeybinds     `toml:"pins_picker"`
-	StarredPicker     StarredPickerKeybinds  `toml:"starred_picker"`
-	UserProfilePanel  UserProfileKeybinds    `toml:"user_profile_panel"`
-	ChannelInfoPanel  ChannelInfoKeybinds    `toml:"channel_info_panel"`
+	ChannelsTree     ChannelsTreeKeybinds   `toml:"channels_tree"`
+	MessagesList     MessagesListKeybinds   `toml:"messages_list"`
+	MessageInput     MessageInputKeybinds   `toml:"message_input"`
+	ThreadView       ThreadViewKeybinds     `toml:"thread_view"`
+	ChannelsPicker   ChannelsPickerKeybinds `toml:"channels_picker"`
+	FilePicker       FilePickerKeybinds     `toml:"file_picker"`
+	SearchPicker     SearchPickerKeybinds   `toml:"search_picker"`
+	PinsPicker       PinsPickerKeybinds     `toml:"pins_picker"`
+	StarredPicker    StarredPickerKeybinds  `toml:"starred_picker"`
+	UserProfilePanel UserProfileKeybinds    `toml:"user_profile_panel"`
+	ChannelInfoPanel ChannelInfoKeybinds    `toml:"channel_info_panel"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -47,24 +47,24 @@ type ChannelsTreeKeybinds struct {
 
 // MessagesListKeybinds holds keybindings for the messages list panel.
 type MessagesListKeybinds struct {
-	Up              string `toml:"up"`
-	Down            string `toml:"down"`
-	SelectCurrent   string `toml:"select_current"`
-	ScrollUp        string `toml:"scroll_up"`
-	ScrollDown      string `toml:"scroll_down"`
-	Reply           string `toml:"reply"`
-	Edit            string `toml:"edit"`
-	Delete          string `toml:"delete"`
-	Reactions       string `toml:"reactions"`
-	RemoveReaction  string `toml:"remove_reaction"`
-	Thread          string `toml:"thread"`
-	Yank            string `toml:"yank"`
-	CopyPermalink   string `toml:"copy_permalink"`
-	OpenFile        string `toml:"open_file"`
-	Pin             string `toml:"pin"`
-	Star            string `toml:"star"`
-	UserProfile     string `toml:"user_profile"`
-	Cancel          string `toml:"cancel"`
+	Up             string `toml:"up"`
+	Down           string `toml:"down"`
+	SelectCurrent  string `toml:"select_current"`
+	ScrollUp       string `toml:"scroll_up"`
+	ScrollDown     string `toml:"scroll_down"`
+	Reply          string `toml:"reply"`
+	Edit           string `toml:"edit"`
+	Delete         string `toml:"delete"`
+	Reactions      string `toml:"reactions"`
+	RemoveReaction string `toml:"remove_reaction"`
+	Thread         string `toml:"thread"`
+	Yank           string `toml:"yank"`
+	CopyPermalink  string `toml:"copy_permalink"`
+	OpenFile       string `toml:"open_file"`
+	Pin            string `toml:"pin"`
+	Star           string `toml:"star"`
+	UserProfile    string `toml:"user_profile"`
+	Cancel         string `toml:"cancel"`
 }
 
 // MessageInputKeybinds holds keybindings for the message input area.
@@ -120,18 +120,18 @@ type PinsPickerKeybinds struct {
 
 // StarredPickerKeybinds holds keybindings for the starred items picker popup.
 type StarredPickerKeybinds struct {
-	Close    string `toml:"close"`
-	Up       string `toml:"up"`
-	Down     string `toml:"down"`
-	Select   string `toml:"select"`
-	Unstar   string `toml:"unstar"`
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
+	Unstar string `toml:"unstar"`
 }
 
 // UserProfileKeybinds holds keybindings for the user profile panel.
 type UserProfileKeybinds struct {
-	Close     string `toml:"close"`
-	OpenDM    string `toml:"open_dm"`
-	CopyID    string `toml:"copy_id"`
+	Close  string `toml:"close"`
+	OpenDM string `toml:"open_dm"`
+	CopyID string `toml:"copy_id"`
 }
 
 // ChannelInfoKeybinds holds keybindings for the channel info panel.

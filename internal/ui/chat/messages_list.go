@@ -50,29 +50,29 @@ type OnUserProfileRequestFunc func(userID string)
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
-	cfg                    *config.Config
-	mdColors               markdown.MarkdownColors
-	messages               []slack.Message          // oldest first
-	users                  map[string]slack.User
-	channelNames           map[string]string        // channelID → name
-	pinnedSet              map[string]bool           // set of pinned message timestamps
-	starredSet             map[string]bool           // set of starred message timestamps
-	selectedIdx            int                      // -1 = no selection
-	channelID              string
-	selfUserID             string
-	selfTeamID             string
-	onReplyRequest         OnReplyRequestFunc
-	onEditRequest          OnEditRequestFunc
-	onThreadRequest        OnThreadRequestFunc
-	onReactionAddRequest   OnReactionAddRequestFunc
+	cfg                     *config.Config
+	mdColors                markdown.MarkdownColors
+	messages                []slack.Message // oldest first
+	users                   map[string]slack.User
+	channelNames            map[string]string // channelID → name
+	pinnedSet               map[string]bool   // set of pinned message timestamps
+	starredSet              map[string]bool   // set of starred message timestamps
+	selectedIdx             int               // -1 = no selection
+	channelID               string
+	selfUserID              string
+	selfTeamID              string
+	onReplyRequest          OnReplyRequestFunc
+	onEditRequest           OnEditRequestFunc
+	onThreadRequest         OnThreadRequestFunc
+	onReactionAddRequest    OnReactionAddRequestFunc
 	onReactionRemoveRequest OnReactionRemoveRequestFunc
-	onFileOpenRequest      OnFileOpenRequestFunc
-	onPinRequest           OnPinRequestFunc
-	onStarRequest          OnStarRequestFunc
-	onYank                 OnYankFunc
-	onCopyPermalink        OnCopyPermalinkFunc
-	onUserProfileRequest   OnUserProfileRequestFunc
-	lastReadTS             string // last-read timestamp for "New messages" separator
+	onFileOpenRequest       OnFileOpenRequestFunc
+	onPinRequest            OnPinRequestFunc
+	onStarRequest           OnStarRequestFunc
+	onYank                  OnYankFunc
+	onCopyPermalink         OnCopyPermalinkFunc
+	onUserProfileRequest    OnUserProfileRequestFunc
+	lastReadTS              string // last-read timestamp for "New messages" separator
 }
 
 // NewMessagesList creates a new messages list component.

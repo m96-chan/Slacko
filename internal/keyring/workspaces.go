@@ -12,10 +12,10 @@ import (
 
 // Workspace represents a stored workspace entry.
 type Workspace struct {
-	ID       string `json:"id"`        // Slack team ID
-	Name     string `json:"name"`      // team/workspace name
-	BotKey   string `json:"bot_key"`   // keyring key for bot token
-	AppKey   string `json:"app_key"`   // keyring key for app token
+	ID     string `json:"id"`      // Slack team ID
+	Name   string `json:"name"`    // team/workspace name
+	BotKey string `json:"bot_key"` // keyring key for bot token
+	AppKey string `json:"app_key"` // keyring key for app token
 }
 
 // WorkspaceTokens holds the resolved tokens for a workspace.

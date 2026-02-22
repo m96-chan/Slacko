@@ -14,8 +14,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"time"
 	"syscall"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/slack-go/slack"
@@ -36,16 +36,16 @@ import (
 
 // App is the top-level application struct.
 type App struct {
-	Config   *config.Config
-	tview    *tview.Application
-	slack    *slackclient.Client
-	chatView *chat.View
-	notifier *notifications.Notifier
-	cancel   context.CancelFunc
+	Config         *config.Config
+	tview          *tview.Application
+	slack          *slackclient.Client
+	chatView       *chat.View
+	notifier       *notifications.Notifier
+	cancel         context.CancelFunc
 	channels       []slack.Channel
 	users          map[string]slack.User
-	dmSet          map[string]bool   // set of DM channel IDs
-	lastRead       map[string]string // channelID → last-read timestamp
+	dmSet          map[string]bool            // set of DM channel IDs
+	lastRead       map[string]string          // channelID → last-read timestamp
 	pinnedMsgs     map[string]map[string]bool // channelID → set of pinned timestamps
 	currentChannel string
 	typingTracker  *typing.Tracker

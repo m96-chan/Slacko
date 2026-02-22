@@ -35,11 +35,11 @@ type OnSlashCommandFunc func(channelID, command, args string)
 // MessageInput wraps tview.TextArea with send/reply/edit support.
 type MessageInput struct {
 	*tview.TextArea
-	cfg       *config.Config
-	channelID string
-	mode      InputMode
-	threadTS  string // set in reply mode
-	editTS    string // set in edit mode
+	cfg            *config.Config
+	channelID      string
+	mode           InputMode
+	threadTS       string // set in reply mode
+	editTS         string // set in edit mode
 	onSend         OnSendFunc
 	onEdit         OnEditFunc
 	onSlashCommand OnSlashCommandFunc
