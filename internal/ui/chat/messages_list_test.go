@@ -261,7 +261,7 @@ func TestAddRemoveReaction(t *testing.T) {
 	}
 	ml.SetMessages("C1", messages, map[string]slack.User{})
 
-	ml.AddReaction("C1", "1700000001.000000", "thumbsup")
+	ml.AddReaction("C1", "1700000001.000000", "thumbsup", "U1")
 	if len(ml.messages[0].Reactions) != 1 {
 		t.Fatalf("expected 1 reaction, got %d", len(ml.messages[0].Reactions))
 	}
@@ -270,19 +270,19 @@ func TestAddRemoveReaction(t *testing.T) {
 	}
 
 	// Add same reaction again — should increment.
-	ml.AddReaction("C1", "1700000001.000000", "thumbsup")
+	ml.AddReaction("C1", "1700000001.000000", "thumbsup", "U2")
 	if ml.messages[0].Reactions[0].Count != 2 {
 		t.Errorf("reaction count should be 2, got %d", ml.messages[0].Reactions[0].Count)
 	}
 
 	// Remove one.
-	ml.RemoveReaction("C1", "1700000001.000000", "thumbsup")
+	ml.RemoveReaction("C1", "1700000001.000000", "thumbsup", "U2")
 	if ml.messages[0].Reactions[0].Count != 1 {
 		t.Errorf("reaction count should be 1 after removal, got %d", ml.messages[0].Reactions[0].Count)
 	}
 
 	// Remove last one — should remove the reaction entry.
-	ml.RemoveReaction("C1", "1700000001.000000", "thumbsup")
+	ml.RemoveReaction("C1", "1700000001.000000", "thumbsup", "U1")
 	if len(ml.messages[0].Reactions) != 0 {
 		t.Errorf("reaction should be removed entirely, got %d", len(ml.messages[0].Reactions))
 	}

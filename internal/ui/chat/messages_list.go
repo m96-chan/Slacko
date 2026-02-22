@@ -23,19 +23,27 @@ type OnReplyRequestFunc func(channelID, threadTS, userName string)
 // OnEditRequestFunc is called when the user requests to edit a message.
 type OnEditRequestFunc func(channelID, timestamp, text string)
 
+// OnReactionAddRequestFunc is called when the user wants to add a reaction.
+type OnReactionAddRequestFunc func(channelID, timestamp string)
+
+// OnReactionRemoveRequestFunc is called when the user wants to remove a reaction.
+type OnReactionRemoveRequestFunc func(channelID, timestamp, reaction string)
+
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
-	cfg              *config.Config
-	messages         []slack.Message          // oldest first
-	users            map[string]slack.User
-	channelNames     map[string]string        // channelID → name
-	selectedIdx      int                      // -1 = no selection
-	channelID        string
-	selfUserID       string
-	onReplyRequest   OnReplyRequestFunc
-	onEditRequest    OnEditRequestFunc
-	onThreadRequest  OnThreadRequestFunc
+	cfg                    *config.Config
+	messages               []slack.Message          // oldest first
+	users                  map[string]slack.User
+	channelNames           map[string]string        // channelID → name
+	selectedIdx            int                      // -1 = no selection
+	channelID              string
+	selfUserID             string
+	onReplyRequest         OnReplyRequestFunc
+	onEditRequest          OnEditRequestFunc
+	onThreadRequest        OnThreadRequestFunc
+	onReactionAddRequest   OnReactionAddRequestFunc
+	onReactionRemoveRequest OnReactionRemoveRequestFunc
 }
 
 // NewMessagesList creates a new messages list component.
@@ -82,6 +90,16 @@ func (ml *MessagesList) SetOnEditRequest(fn OnEditRequestFunc) {
 // SetOnThreadRequest sets the callback for thread open requests.
 func (ml *MessagesList) SetOnThreadRequest(fn OnThreadRequestFunc) {
 	ml.onThreadRequest = fn
+}
+
+// SetOnReactionAddRequest sets the callback for adding reactions.
+func (ml *MessagesList) SetOnReactionAddRequest(fn OnReactionAddRequestFunc) {
+	ml.onReactionAddRequest = fn
+}
+
+// SetOnReactionRemoveRequest sets the callback for removing reactions.
+func (ml *MessagesList) SetOnReactionRemoveRequest(fn OnReactionRemoveRequestFunc) {
+	ml.onReactionRemoveRequest = fn
 }
 
 // IncrementReplyCount increments the reply count on a parent message.
@@ -169,7 +187,7 @@ func (ml *MessagesList) RemoveMessage(channelID, timestamp string) {
 }
 
 // AddReaction adds or increments a reaction on a message.
-func (ml *MessagesList) AddReaction(channelID, timestamp, reaction string) {
+func (ml *MessagesList) AddReaction(channelID, timestamp, reaction, userID string) {
 	if channelID != ml.channelID {
 		return
 	}
@@ -180,15 +198,20 @@ func (ml *MessagesList) AddReaction(channelID, timestamp, reaction string) {
 			for j := range ml.messages[i].Reactions {
 				if ml.messages[i].Reactions[j].Name == reaction {
 					ml.messages[i].Reactions[j].Count++
+					if userID != "" {
+						ml.messages[i].Reactions[j].Users = append(
+							ml.messages[i].Reactions[j].Users, userID)
+					}
 					ml.render()
 					return
 				}
 			}
 			// New reaction.
-			ml.messages[i].Reactions = append(ml.messages[i].Reactions, slack.ItemReaction{
-				Name:  reaction,
-				Count: 1,
-			})
+			r := slack.ItemReaction{Name: reaction, Count: 1}
+			if userID != "" {
+				r.Users = []string{userID}
+			}
+			ml.messages[i].Reactions = append(ml.messages[i].Reactions, r)
 			ml.render()
 			return
 		}
@@ -196,7 +219,7 @@ func (ml *MessagesList) AddReaction(channelID, timestamp, reaction string) {
 }
 
 // RemoveReaction decrements or removes a reaction on a message.
-func (ml *MessagesList) RemoveReaction(channelID, timestamp, reaction string) {
+func (ml *MessagesList) RemoveReaction(channelID, timestamp, reaction, userID string) {
 	if channelID != ml.channelID {
 		return
 	}
@@ -206,6 +229,15 @@ func (ml *MessagesList) RemoveReaction(channelID, timestamp, reaction string) {
 			for j := range ml.messages[i].Reactions {
 				if ml.messages[i].Reactions[j].Name == reaction {
 					ml.messages[i].Reactions[j].Count--
+					if userID != "" {
+						users := ml.messages[i].Reactions[j].Users
+						for k, u := range users {
+							if u == userID {
+								ml.messages[i].Reactions[j].Users = append(users[:k], users[k+1:]...)
+								break
+							}
+						}
+					}
 					if ml.messages[i].Reactions[j].Count <= 0 {
 						ml.messages[i].Reactions = append(
 							ml.messages[i].Reactions[:j],
@@ -296,7 +328,13 @@ func (ml *MessagesList) render() {
 				if j > 0 {
 					b.WriteString("  ")
 				}
-				fmt.Fprintf(&b, "[gray]:%s: %d[-]", tview.Escape(r.Name), r.Count)
+				emoji := markdown.LookupEmoji(r.Name)
+				isSelf := containsStr(r.Users, ml.selfUserID)
+				if isSelf {
+					fmt.Fprintf(&b, "[yellow]%s %d[-]", emoji, r.Count)
+				} else {
+					fmt.Fprintf(&b, "[gray]%s %d[-]", emoji, r.Count)
+				}
 			}
 			b.WriteString("\n")
 		}
@@ -376,6 +414,25 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			}
 			ml.onThreadRequest(ml.channelID, threadTS)
 			return nil
+		}
+
+	case ml.cfg.Keybinds.MessagesList.Reactions:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onReactionAddRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			ml.onReactionAddRequest(ml.channelID, msg.Timestamp)
+			return nil
+		}
+
+	case ml.cfg.Keybinds.MessagesList.RemoveReaction:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onReactionRemoveRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			// Find the first reaction from the current user and remove it.
+			for _, r := range msg.Reactions {
+				if containsStr(r.Users, ml.selfUserID) {
+					ml.onReactionRemoveRequest(ml.channelID, msg.Timestamp, r.Name)
+					return nil
+				}
+			}
 		}
 	}
 
@@ -491,6 +548,16 @@ func systemMessageText(msg slack.Message, users map[string]slack.User) string {
 	default:
 		return ""
 	}
+}
+
+// containsStr checks if a string slice contains a value.
+func containsStr(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // formatFileSize formats a byte count as a human-readable string.

@@ -160,6 +160,32 @@ func (a *App) showMain() {
 	// Wire channel picker selection.
 	a.chatView.ChannelsPicker.SetOnSelect(a.onChannelSelected)
 
+	// Wire reaction picker.
+	var reactionChannelID, reactionTimestamp string
+	a.chatView.MessagesList.SetOnReactionAddRequest(func(channelID, timestamp string) {
+		reactionChannelID = channelID
+		reactionTimestamp = timestamp
+		a.chatView.ShowReactionPicker()
+	})
+	a.chatView.ReactionsPicker.SetOnSelect(func(emojiName string) {
+		chID := reactionChannelID
+		ts := reactionTimestamp
+		go func() {
+			err := a.slack.AddReaction(emojiName, slack.NewRefToMessage(chID, ts))
+			if err != nil {
+				slog.Error("failed to add reaction", "channel", chID, "error", err)
+			}
+		}()
+	})
+	a.chatView.MessagesList.SetOnReactionRemoveRequest(func(channelID, timestamp, reaction string) {
+		go func() {
+			err := a.slack.RemoveReaction(reaction, slack.NewRefToMessage(channelID, timestamp))
+			if err != nil {
+				slog.Error("failed to remove reaction", "channel", channelID, "error", err)
+			}
+		}()
+	})
+
 	a.chatView.StatusBar.SetConnectionStatus(
 		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 	a.tview.SetRoot(a.chatView, true)
@@ -267,13 +293,13 @@ func (a *App) showMain() {
 		OnReactionAdded: func(evt *slackevents.ReactionAddedEvent) {
 			a.tview.QueueUpdateDraw(func() {
 				a.chatView.MessagesList.AddReaction(
-					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction)
+					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction, evt.User)
 			})
 		},
 		OnReactionRemoved: func(evt *slackevents.ReactionRemovedEvent) {
 			a.tview.QueueUpdateDraw(func() {
 				a.chatView.MessagesList.RemoveReaction(
-					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction)
+					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction, evt.User)
 			})
 		},
 	}

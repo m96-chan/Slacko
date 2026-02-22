@@ -449,3 +449,13 @@ func lookupEmoji(name string) string {
 	}
 	return ":" + name + ":"
 }
+
+// LookupEmoji returns the unicode emoji for a name, or the :name: fallback.
+func LookupEmoji(name string) string {
+	return lookupEmoji(name)
+}
+
+// EmojiEntries returns all emoji name→unicode pairs.
+func EmojiEntries() map[string]string {
+	return emojiMap
+}

@@ -34,18 +34,19 @@ type ChannelsTreeKeybinds struct {
 
 // MessagesListKeybinds holds keybindings for the messages list panel.
 type MessagesListKeybinds struct {
-	Up            string `toml:"up"`
-	Down          string `toml:"down"`
-	SelectCurrent string `toml:"select_current"`
-	ScrollUp      string `toml:"scroll_up"`
-	ScrollDown    string `toml:"scroll_down"`
-	Reply         string `toml:"reply"`
-	Edit          string `toml:"edit"`
-	Delete        string `toml:"delete"`
-	Reactions     string `toml:"reactions"`
-	Thread        string `toml:"thread"`
-	Yank          string `toml:"yank"`
-	Cancel        string `toml:"cancel"`
+	Up              string `toml:"up"`
+	Down            string `toml:"down"`
+	SelectCurrent   string `toml:"select_current"`
+	ScrollUp        string `toml:"scroll_up"`
+	ScrollDown      string `toml:"scroll_down"`
+	Reply           string `toml:"reply"`
+	Edit            string `toml:"edit"`
+	Delete          string `toml:"delete"`
+	Reactions       string `toml:"reactions"`
+	RemoveReaction  string `toml:"remove_reaction"`
+	Thread          string `toml:"thread"`
+	Yank            string `toml:"yank"`
+	Cancel          string `toml:"cancel"`
 }
 
 // MessageInputKeybinds holds keybindings for the message input area.

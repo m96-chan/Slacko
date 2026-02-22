@@ -27,22 +27,25 @@ type View struct {
 	cfg        *config.Config
 	StatusBar  *StatusBar
 
-	ChannelsTree   *ChannelsTree
-	Header         *tview.TextView
-	MessagesList   *MessagesList
-	MessageInput   *MessageInput
-	MentionsList   *MentionsList
-	ThreadView     *ThreadView
-	ChannelsPicker *ChannelsPicker
+	ChannelsTree    *ChannelsTree
+	Header          *tview.TextView
+	MessagesList    *MessagesList
+	MessageInput    *MessageInput
+	MentionsList    *MentionsList
+	ThreadView      *ThreadView
+	ChannelsPicker  *ChannelsPicker
+	ReactionsPicker *ReactionsPicker
 
-	outerFlex       *tview.Flex
-	contentFlex     *tview.Flex
-	mainFlex        *tview.Flex
-	pickerModal     tview.Primitive
-	activePanel     Panel
-	channelsVisible bool
-	threadVisible   bool
-	pickerVisible   bool
+	outerFlex        *tview.Flex
+	contentFlex      *tview.Flex
+	mainFlex         *tview.Flex
+	pickerModal      tview.Primitive
+	reactionModal    tview.Primitive
+	activePanel      Panel
+	channelsVisible  bool
+	threadVisible    bool
+	pickerVisible    bool
+	reactionVisible  bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -129,7 +132,23 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
-	// Pages: main layout + picker overlay.
+	// Reaction picker (modal overlay).
+	v.ReactionsPicker = NewReactionsPicker(cfg)
+	v.ReactionsPicker.SetOnClose(func() {
+		v.HideReactionPicker()
+	})
+
+	// Centered modal wrapper for the reaction picker.
+	v.reactionModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.ReactionsPicker, 40, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
+	// Pages: main layout + modal overlays.
 	v.Pages = tview.NewPages().
 		AddPage("main", v.outerFlex, true, true)
 
@@ -182,8 +201,8 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
-	// When the picker is visible, all other keys go to the picker input.
-	if v.pickerVisible {
+	// When a modal is visible, all other keys go to its input.
+	if v.pickerVisible || v.reactionVisible {
 		return event
 	}
 
@@ -238,6 +257,21 @@ func (v *View) ShowPicker() {
 func (v *View) HidePicker() {
 	v.pickerVisible = false
 	v.Pages.RemovePage("picker")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowReactionPicker shows the reaction picker modal overlay.
+func (v *View) ShowReactionPicker() {
+	v.reactionVisible = true
+	v.ReactionsPicker.Reset()
+	v.Pages.AddPage("reaction", v.reactionModal, true, true)
+	v.app.SetFocus(v.ReactionsPicker.input)
+}
+
+// HideReactionPicker hides the reaction picker and restores focus.
+func (v *View) HideReactionPicker() {
+	v.reactionVisible = false
+	v.Pages.RemovePage("reaction")
 	v.FocusPanel(v.activePanel)
 }
 
