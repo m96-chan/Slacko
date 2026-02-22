@@ -130,6 +130,21 @@ func (a *App) showMain() {
 
 	a.chatView = chat.New(a.tview, a.Config)
 	a.chatView.SetOnChannelSelected(a.onChannelSelected)
+
+	// Wire message input callbacks.
+	a.chatView.MessageInput.SetOnSend(a.onMessageSend)
+	a.chatView.MessageInput.SetOnEdit(a.onMessageEdit)
+
+	// Wire reply/edit triggers from messages list.
+	a.chatView.MessagesList.SetOnReplyRequest(func(channelID, threadTS, userName string) {
+		a.chatView.MessageInput.SetReplyContext(threadTS, userName)
+		a.chatView.FocusPanel(chat.PanelInput)
+	})
+	a.chatView.MessagesList.SetOnEditRequest(func(channelID, timestamp, text string) {
+		a.chatView.MessageInput.SetEditMode(timestamp, text)
+		a.chatView.FocusPanel(chat.PanelInput)
+	})
+
 	a.chatView.StatusBar.SetConnectionStatus(
 		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 	a.tview.SetRoot(a.chatView, true)
@@ -264,6 +279,7 @@ func (a *App) fetchInitialData() {
 
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.ChannelsTree.Populate(channels, userMap, a.slack.UserID)
+		a.chatView.MessagesList.SetSelfUserID(a.slack.UserID)
 		a.chatView.StatusBar.SetConnectionStatus(
 			fmt.Sprintf("%s (%s) — connected (%d channels, %d users)",
 				a.slack.UserName, a.slack.TeamName, len(channels), len(users)))
@@ -281,6 +297,7 @@ func (a *App) onChannelSelected(channelID string) {
 	}
 	a.mu.Unlock()
 
+	a.chatView.MessageInput.SetChannel(channelID)
 	go a.loadMessages(channelID)
 }
 
@@ -302,6 +319,31 @@ func (a *App) loadMessages(channelID string) {
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.MessagesList.SetMessages(channelID, resp.Messages, users)
 	})
+}
+
+// onMessageSend handles sending a new message or thread reply.
+func (a *App) onMessageSend(channelID, text, threadTS string) {
+	go func() {
+		opts := []slack.MsgOption{slack.MsgOptionText(text, false)}
+		if threadTS != "" {
+			opts = append(opts, slack.MsgOptionTS(threadTS))
+		}
+		_, _, err := a.slack.PostMessage(channelID, opts...)
+		if err != nil {
+			slog.Error("failed to send message", "channel", channelID, "error", err)
+		}
+	}()
+}
+
+// onMessageEdit handles editing an existing message.
+func (a *App) onMessageEdit(channelID, timestamp, text string) {
+	go func() {
+		_, _, _, err := a.slack.UpdateMessage(channelID, timestamp,
+			slack.MsgOptionText(text, false))
+		if err != nil {
+			slog.Error("failed to edit message", "channel", channelID, "error", err)
+		}
+	}()
 }
 
 // fetchAllChannels retrieves all conversations with pagination.

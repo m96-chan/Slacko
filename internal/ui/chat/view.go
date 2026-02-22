@@ -29,7 +29,7 @@ type View struct {
 	ChannelsTree *ChannelsTree
 	Header       *tview.TextView
 	MessagesList *MessagesList
-	Input        *tview.TextArea
+	MessageInput *MessageInput
 
 	contentFlex     *tview.Flex
 	mainFlex        *tview.Flex
@@ -68,9 +68,7 @@ func New(app *tview.Application, cfg *config.Config) *View {
 	v.MessagesList = NewMessagesList(cfg)
 
 	// Input area.
-	v.Input = tview.NewTextArea()
-	v.Input.SetBorder(true).SetTitle(" Input ")
-	v.Input.SetPlaceholder("Type a message...")
+	v.MessageInput = NewMessageInput(cfg)
 
 	// Status bar.
 	v.StatusBar = NewStatusBar(cfg)
@@ -79,7 +77,7 @@ func New(app *tview.Application, cfg *config.Config) *View {
 	v.contentFlex = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.Header, 1, 0, false).
 		AddItem(v.MessagesList, 0, 1, false).
-		AddItem(v.Input, 3, 0, false)
+		AddItem(v.MessageInput, 3, 0, false)
 
 	// Main flex (horizontal): channel tree + content.
 	v.mainFlex = tview.NewFlex().SetDirection(tview.FlexColumn).
@@ -114,7 +112,7 @@ func (v *View) FocusPanel(panel Panel) {
 	case PanelMessages:
 		v.app.SetFocus(v.MessagesList)
 	case PanelInput:
-		v.app.SetFocus(v.Input)
+		v.app.SetFocus(v.MessageInput)
 	}
 }
 
@@ -193,7 +191,7 @@ func (v *View) applyBorderStyles() {
 	panels := []bordered{
 		{v.ChannelsTree, PanelChannels},
 		{v.MessagesList, PanelMessages},
-		{v.Input, PanelInput},
+		{v.MessageInput, PanelInput},
 	}
 
 	for _, p := range panels {

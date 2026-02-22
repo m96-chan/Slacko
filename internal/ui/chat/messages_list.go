@@ -19,14 +19,23 @@ const messageGroupingWindow = 5 * time.Minute
 
 var userMentionRe = regexp.MustCompile(`<@(U[A-Z0-9]+)(?:\|([^>]*)?)?>`)
 
+// OnReplyRequestFunc is called when the user requests to reply to a message.
+type OnReplyRequestFunc func(channelID, threadTS, userName string)
+
+// OnEditRequestFunc is called when the user requests to edit a message.
+type OnEditRequestFunc func(channelID, timestamp, text string)
+
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
-	cfg         *config.Config
-	messages    []slack.Message          // oldest first
-	users       map[string]slack.User
-	selectedIdx int                      // -1 = no selection
-	channelID   string
+	cfg            *config.Config
+	messages       []slack.Message          // oldest first
+	users          map[string]slack.User
+	selectedIdx    int                      // -1 = no selection
+	channelID      string
+	selfUserID     string
+	onReplyRequest OnReplyRequestFunc
+	onEditRequest  OnEditRequestFunc
 }
 
 // NewMessagesList creates a new messages list component.
@@ -47,6 +56,21 @@ func NewMessagesList(cfg *config.Config) *MessagesList {
 	ml.SetInputCapture(ml.handleInput)
 
 	return ml
+}
+
+// SetSelfUserID sets the current user's ID for edit permission checks.
+func (ml *MessagesList) SetSelfUserID(id string) {
+	ml.selfUserID = id
+}
+
+// SetOnReplyRequest sets the callback for reply requests.
+func (ml *MessagesList) SetOnReplyRequest(fn OnReplyRequestFunc) {
+	ml.onReplyRequest = fn
+}
+
+// SetOnEditRequest sets the callback for edit requests.
+func (ml *MessagesList) SetOnEditRequest(fn OnEditRequestFunc) {
+	ml.onEditRequest = fn
 }
 
 // SetMessages replaces the message list and renders.
@@ -294,6 +318,28 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		ml.Highlight()
 		ml.ScrollToEnd()
 		return nil
+
+	case ml.cfg.Keybinds.MessagesList.Reply:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onReplyRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users)
+			// Use the message's own timestamp as the thread parent.
+			threadTS := msg.Timestamp
+			if msg.ThreadTimestamp != "" {
+				threadTS = msg.ThreadTimestamp
+			}
+			ml.onReplyRequest(ml.channelID, threadTS, userName)
+			return nil
+		}
+
+	case ml.cfg.Keybinds.MessagesList.Edit:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onEditRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			if msg.User == ml.selfUserID {
+				ml.onEditRequest(ml.channelID, msg.Timestamp, msg.Text)
+				return nil
+			}
+		}
 	}
 
 	return event
