@@ -26,7 +26,7 @@ type View struct {
 	cfg        *config.Config
 	StatusBar  *StatusBar
 
-	ChannelTree *tview.TreeView
+	ChannelsTree *ChannelsTree
 	Header      *tview.TextView
 	Messages    *tview.TextView
 	Input       *tview.TextArea
@@ -43,7 +43,7 @@ type View struct {
 //
 //	Outer Flex (FlexRow)
 //	├── mainFlex (FlexColumn)
-//	│   ├── ChannelTree (fixed 30 cols)
+//	│   ├── ChannelsTree (fixed 30 cols)
 //	│   └── contentFlex (FlexRow)
 //	│       ├── Header (fixed 1 row)
 //	│       ├── Messages (proportional)
@@ -57,10 +57,7 @@ func New(app *tview.Application, cfg *config.Config) *View {
 	}
 
 	// Channel tree (left sidebar).
-	v.ChannelTree = tview.NewTreeView()
-	root := tview.NewTreeNode("Channels")
-	v.ChannelTree.SetRoot(root).SetCurrentNode(root)
-	v.ChannelTree.SetBorder(true).SetTitle(" Channels ")
+	v.ChannelsTree = NewChannelsTree(cfg, nil)
 
 	// Header (channel name + topic).
 	v.Header = tview.NewTextView().
@@ -90,7 +87,7 @@ func New(app *tview.Application, cfg *config.Config) *View {
 
 	// Main flex (horizontal): channel tree + content.
 	v.mainFlex = tview.NewFlex().SetDirection(tview.FlexColumn).
-		AddItem(v.ChannelTree, 30, 0, false).
+		AddItem(v.ChannelsTree, 30, 0, false).
 		AddItem(v.contentFlex, 0, 1, false)
 
 	// Outer flex (vertical): main + status bar.
@@ -105,6 +102,11 @@ func New(app *tview.Application, cfg *config.Config) *View {
 	return v
 }
 
+// SetOnChannelSelected sets the callback invoked when a channel is selected.
+func (v *View) SetOnChannelSelected(fn OnChannelSelectedFunc) {
+	v.ChannelsTree.SetOnChannelSelected(fn)
+}
+
 // FocusPanel sets focus to the given panel and updates border colors.
 func (v *View) FocusPanel(panel Panel) {
 	v.activePanel = panel
@@ -112,7 +114,7 @@ func (v *View) FocusPanel(panel Panel) {
 
 	switch panel {
 	case PanelChannels:
-		v.app.SetFocus(v.ChannelTree)
+		v.app.SetFocus(v.ChannelsTree)
 	case PanelMessages:
 		v.app.SetFocus(v.Messages)
 	case PanelInput:
@@ -175,7 +177,7 @@ func (v *View) SetChannelHeader(name, topic string) {
 func (v *View) rebuildMainFlex() {
 	v.mainFlex.Clear()
 	if v.channelsVisible {
-		v.mainFlex.AddItem(v.ChannelTree, 30, 0, false)
+		v.mainFlex.AddItem(v.ChannelsTree, 30, 0, false)
 	}
 	v.mainFlex.AddItem(v.contentFlex, 0, 1, false)
 }
@@ -193,7 +195,7 @@ func (v *View) applyBorderStyles() {
 	}
 
 	panels := []bordered{
-		{v.ChannelTree, PanelChannels},
+		{v.ChannelsTree, PanelChannels},
 		{v.Messages, PanelMessages},
 		{v.Input, PanelInput},
 	}

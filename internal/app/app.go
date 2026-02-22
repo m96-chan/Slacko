@@ -11,6 +11,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/slack-go/slack"
+	"github.com/slack-go/slack/slackevents"
 	gokeyring "github.com/zalando/go-keyring"
 
 	"github.com/m96-chan/Slacko/internal/config"
@@ -128,6 +129,7 @@ func (a *App) showMain() {
 	}
 
 	a.chatView = chat.New(a.tview, a.Config)
+	a.chatView.SetOnChannelSelected(a.onChannelSelected)
 	a.chatView.StatusBar.SetConnectionStatus(
 		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 	a.tview.SetRoot(a.chatView, true)
@@ -156,6 +158,36 @@ func (a *App) showMain() {
 		},
 		OnError: func(err error) {
 			slog.Error("socket mode error", "error", err)
+		},
+		OnChannelCreated: func(evt *slackevents.ChannelCreatedEvent) {
+			a.mu.Lock()
+			users := a.users
+			a.mu.Unlock()
+			// Construct a minimal slack.Channel from the event.
+			ch := slack.Channel{}
+			ch.ID = evt.Channel.ID
+			ch.Name = evt.Channel.Name
+			ch.IsChannel = evt.Channel.IsChannel
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ChannelsTree.AddChannel(ch, users, a.slack.UserID)
+			})
+		},
+		OnChannelRename: func(evt *slackevents.ChannelRenameEvent) {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ChannelsTree.RenameChannel(evt.Channel.ID, evt.Channel.Name)
+			})
+		},
+		OnChannelArchive: func(evt *slackevents.ChannelArchiveEvent) {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ChannelsTree.RemoveChannel(evt.Channel)
+			})
+		},
+		OnMemberLeftChannel: func(evt *slackevents.MemberLeftChannelEvent) {
+			if evt.User == a.slack.UserID {
+				a.tview.QueueUpdateDraw(func() {
+					a.chatView.ChannelsTree.RemoveChannel(evt.Channel)
+				})
+			}
 		},
 	}
 
@@ -193,10 +225,24 @@ func (a *App) fetchInitialData() {
 	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
 
 	a.tview.QueueUpdateDraw(func() {
+		a.chatView.ChannelsTree.Populate(channels, userMap, a.slack.UserID)
 		a.chatView.StatusBar.SetConnectionStatus(
 			fmt.Sprintf("%s (%s) — connected (%d channels, %d users)",
 				a.slack.UserName, a.slack.TeamName, len(channels), len(users)))
 	})
+}
+
+// onChannelSelected is called when the user selects a channel in the tree.
+func (a *App) onChannelSelected(channelID string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for _, ch := range a.channels {
+		if ch.ID == channelID {
+			a.chatView.SetChannelHeader(ch.Name, ch.Topic.Value)
+			return
+		}
+	}
 }
 
 // fetchAllChannels retrieves all conversations with pagination.
