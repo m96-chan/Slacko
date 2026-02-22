@@ -38,10 +38,12 @@ type App struct {
 	chatView *chat.View
 	notifier *notifications.Notifier
 	cancel   context.CancelFunc
-	channels []slack.Channel
-	users    map[string]slack.User
-	dmSet    map[string]bool // set of DM channel IDs
-	mu       sync.Mutex
+	channels       []slack.Channel
+	users          map[string]slack.User
+	dmSet          map[string]bool   // set of DM channel IDs
+	lastRead       map[string]string // channelID → last-read timestamp
+	currentChannel string
+	mu             sync.Mutex
 }
 
 // New creates a new App with the given config.
@@ -51,6 +53,7 @@ func New(cfg *config.Config) *App {
 		tview:    tview.NewApplication(),
 		users:    make(map[string]slack.User),
 		dmSet:    make(map[string]bool),
+		lastRead: make(map[string]string),
 		notifier: notifications.New(),
 	}
 }
@@ -227,6 +230,23 @@ func (a *App) showMain() {
 		go a.openFile(file)
 	})
 
+	// Wire mark-as-read keybinds.
+	a.chatView.SetOnMarkRead(func() {
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch == "" {
+			return
+		}
+		ts := a.chatView.MessagesList.LatestTimestamp()
+		if ts != "" {
+			a.markChannelRead(ch, ts)
+		}
+	})
+	a.chatView.SetOnMarkAllRead(func() {
+		go a.markAllChannelsRead()
+	})
+
 	a.chatView.StatusBar.SetConnectionStatus(
 		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 	a.tview.SetRoot(a.chatView, true)
@@ -293,6 +313,11 @@ func (a *App) showMain() {
 			msg.Timestamp = evt.TimeStamp
 			msg.ThreadTimestamp = evt.ThreadTimeStamp
 			msg.Channel = evt.Channel
+
+			a.mu.Lock()
+			isCurrent := evt.Channel == a.currentChannel
+			a.mu.Unlock()
+
 			a.tview.QueueUpdateDraw(func() {
 				a.chatView.MessagesList.AppendMessage(evt.Channel, msg)
 				// Increment reply count on parent message for thread replies.
@@ -306,7 +331,23 @@ func (a *App) showMain() {
 					a.chatView.ThreadView.ThreadTS() == evt.ThreadTimeStamp {
 					a.chatView.ThreadView.AppendReply(msg)
 				}
+				// Update unread badge for background channels.
+				if !isCurrent {
+					a.chatView.ChannelsTree.SetUnreadCount(evt.Channel, -1)
+				}
 			})
+
+			// Auto-mark current channel as read.
+			if isCurrent {
+				go func() {
+					if err := a.slack.MarkConversation(evt.Channel, evt.TimeStamp); err != nil {
+						slog.Error("failed to mark conversation", "channel", evt.Channel, "error", err)
+					}
+				}()
+				a.mu.Lock()
+				a.lastRead[evt.Channel] = evt.TimeStamp
+				a.mu.Unlock()
+			}
 
 			// Desktop notifications.
 			a.maybeNotify(evt)
@@ -403,10 +444,18 @@ func (a *App) fetchInitialData() {
 		}
 	}
 
+	lastReadMap := make(map[string]string, len(channels))
+	for _, ch := range channels {
+		if ch.LastRead != "" {
+			lastReadMap[ch.ID] = ch.LastRead
+		}
+	}
+
 	a.mu.Lock()
 	a.channels = channels
 	a.users = userMap
 	a.dmSet = dmSet
+	a.lastRead = lastReadMap
 	a.mu.Unlock()
 
 	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
@@ -424,6 +473,12 @@ func (a *App) fetchInitialData() {
 		a.chatView.MessagesList.SetSelfUserID(a.slack.UserID)
 		a.chatView.MessagesList.SetChannelNames(channelNames)
 		a.chatView.ThreadView.SetChannelNames(channelNames)
+		// Set unread count badges for channels with unreads.
+		for _, ch := range channels {
+			if ch.UnreadCountDisplay > 0 {
+				a.chatView.ChannelsTree.SetUnreadCount(ch.ID, ch.UnreadCountDisplay)
+			}
+		}
 		a.chatView.StatusBar.SetConnectionStatus(
 			fmt.Sprintf("%s (%s) — connected (%d channels, %d users)",
 				a.slack.UserName, a.slack.TeamName, len(channels), len(users)))
@@ -438,6 +493,8 @@ func (a *App) onChannelSelected(channelID string) {
 	}
 
 	a.mu.Lock()
+	a.currentChannel = channelID
+	lr := a.lastRead[channelID]
 	for _, ch := range a.channels {
 		if ch.ID == channelID {
 			a.chatView.SetChannelHeader(ch.Name, ch.Topic.Value)
@@ -446,6 +503,7 @@ func (a *App) onChannelSelected(channelID string) {
 	}
 	a.mu.Unlock()
 
+	a.chatView.MessagesList.SetLastRead(lr)
 	a.chatView.MessageInput.SetChannel(channelID)
 	go a.loadMessages(channelID)
 }
@@ -469,6 +527,12 @@ func (a *App) loadMessages(channelID string) {
 		a.chatView.MessagesList.SetMessages(channelID, resp.Messages, users)
 		a.updateChannelPresence(channelID, resp.Messages, users)
 	})
+
+	// Auto-mark channel as read with the newest message timestamp.
+	if len(resp.Messages) > 0 {
+		latestTS := resp.Messages[0].Timestamp // newest-first from API
+		a.markChannelRead(channelID, latestTS)
+	}
 }
 
 // searchMessages searches Slack messages and updates the search picker with results.
@@ -745,6 +809,44 @@ func (a *App) openFile(file slack.File) {
 	}
 	if err := cmd.Start(); err != nil {
 		slog.Error("failed to open file", "path", destPath, "error", err)
+	}
+}
+
+// markChannelRead updates the last-read timestamp, clears the unread badge,
+// and calls MarkConversation on the Slack API.
+func (a *App) markChannelRead(channelID, ts string) {
+	a.mu.Lock()
+	a.lastRead[channelID] = ts
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.ChannelsTree.SetUnreadCount(channelID, 0)
+	})
+
+	go func() {
+		if err := a.slack.MarkConversation(channelID, ts); err != nil {
+			slog.Error("failed to mark conversation", "channel", channelID, "error", err)
+		}
+	}()
+}
+
+// markAllChannelsRead marks all channels as read using their latest known message.
+func (a *App) markAllChannelsRead() {
+	a.mu.Lock()
+	channels := make([]slack.Channel, len(a.channels))
+	copy(channels, a.channels)
+	a.mu.Unlock()
+
+	for _, ch := range channels {
+		a.mu.Lock()
+		lr := a.lastRead[ch.ID]
+		a.mu.Unlock()
+		if lr != "" {
+			// Only mark if there are unreads.
+			if a.chatView.ChannelsTree.UnreadCount(ch.ID) > 0 {
+				a.markChannelRead(ch.ID, lr)
+			}
+		}
 	}
 }
 

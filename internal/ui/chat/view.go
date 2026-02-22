@@ -46,6 +46,8 @@ type View struct {
 	fileModal         tview.Primitive
 	searchModal       tview.Primitive
 	activePanel       Panel
+	onMarkRead        func()
+	onMarkAllRead     func()
 	channelsVisible   bool
 	threadVisible     bool
 	pickerVisible     bool
@@ -202,6 +204,16 @@ func (v *View) SetOnChannelSelected(fn OnChannelSelectedFunc) {
 	v.ChannelsTree.SetOnChannelSelected(fn)
 }
 
+// SetOnMarkRead sets the callback invoked when the user presses the mark-read key.
+func (v *View) SetOnMarkRead(fn func()) {
+	v.onMarkRead = fn
+}
+
+// SetOnMarkAllRead sets the callback invoked when the user presses the mark-all-read key.
+func (v *View) SetOnMarkAllRead(fn func()) {
+	v.onMarkAllRead = fn
+}
+
 // FocusPanel sets focus to the given panel and updates border colors.
 func (v *View) FocusPanel(panel Panel) {
 	v.activePanel = panel
@@ -276,6 +288,16 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	case v.cfg.Keybinds.FocusInput:
 		v.FocusPanel(PanelInput)
+		return nil
+	case v.cfg.Keybinds.MarkRead:
+		if v.onMarkRead != nil {
+			v.onMarkRead()
+		}
+		return nil
+	case v.cfg.Keybinds.MarkAllRead:
+		if v.onMarkAllRead != nil {
+			v.onMarkAllRead()
+		}
 		return nil
 	}
 

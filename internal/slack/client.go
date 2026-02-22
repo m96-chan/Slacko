@@ -195,6 +195,13 @@ func (c *Client) GetUsers() ([]slack.User, error) {
 	return users, err
 }
 
+// MarkConversation sets the read cursor for a conversation to a specific message.
+func (c *Client) MarkConversation(channel, ts string) error {
+	return retryOnRateLimit(func() error {
+		return c.api.MarkConversation(channel, ts)
+	})
+}
+
 // SearchMessages searches for messages matching a query.
 func (c *Client) SearchMessages(query string, params slack.SearchParameters) (*slack.SearchMessages, error) {
 	var results *slack.SearchMessages

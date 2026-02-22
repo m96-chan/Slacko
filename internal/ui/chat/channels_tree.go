@@ -2,6 +2,7 @@ package chat
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -38,19 +39,21 @@ type ChannelsTree struct {
 	cfg        *config.Config
 	root       *tview.TreeNode
 	sections   map[ChannelType]*tview.TreeNode
-	nodeIndex  map[string]*tview.TreeNode  // channelID → node
-	channelIDs map[*tview.TreeNode]string  // node → channelID (reverse)
-	onSelected OnChannelSelectedFunc
+	nodeIndex    map[string]*tview.TreeNode  // channelID → node
+	channelIDs   map[*tview.TreeNode]string  // node → channelID (reverse)
+	unreadCounts map[string]int              // channelID → unread count
+	onSelected   OnChannelSelectedFunc
 }
 
 // NewChannelsTree creates a tree with four section headers.
 func NewChannelsTree(cfg *config.Config, onSelected OnChannelSelectedFunc) *ChannelsTree {
 	ct := &ChannelsTree{
-		TreeView:   tview.NewTreeView(),
-		cfg:        cfg,
-		nodeIndex:  make(map[string]*tview.TreeNode),
-		channelIDs: make(map[*tview.TreeNode]string),
-		onSelected: onSelected,
+		TreeView:     tview.NewTreeView(),
+		cfg:          cfg,
+		nodeIndex:    make(map[string]*tview.TreeNode),
+		channelIDs:   make(map[*tview.TreeNode]string),
+		unreadCounts: make(map[string]int),
+		onSelected:   onSelected,
 	}
 
 	ct.root = tview.NewTreeNode("")
@@ -99,6 +102,7 @@ func (ct *ChannelsTree) Populate(channels []slack.Channel, users map[string]slac
 	}
 	ct.nodeIndex = make(map[string]*tview.TreeNode)
 	ct.channelIDs = make(map[*tview.TreeNode]string)
+	ct.unreadCounts = make(map[string]int)
 
 	// Sort channels: public/private by name, DMs/group DMs by display name.
 	sorted := make([]slack.Channel, len(channels))
@@ -169,16 +173,53 @@ func (ct *ChannelsTree) RenameChannel(channelID, newName string) {
 
 // SetUnread toggles the unread style on a channel node.
 func (ct *ChannelsTree) SetUnread(channelID string, unread bool) {
+	if unread {
+		ct.SetUnreadCount(channelID, 1)
+	} else {
+		ct.SetUnreadCount(channelID, 0)
+	}
+}
+
+// SetUnreadCount updates the unread count badge on a channel node.
+// count > 0: set bold style and show "(N)" badge.
+// count == 0: clear style and badge.
+// count == -1: increment existing count by 1.
+func (ct *ChannelsTree) SetUnreadCount(channelID string, count int) {
 	node, ok := ct.nodeIndex[channelID]
 	if !ok {
 		return
 	}
 
-	if unread {
+	if count == -1 {
+		ct.unreadCounts[channelID]++
+	} else {
+		ct.unreadCounts[channelID] = count
+	}
+
+	actual := ct.unreadCounts[channelID]
+	base := stripBadge(node.GetText())
+
+	if actual > 0 {
+		node.SetText(fmt.Sprintf("%s (%d)", base, actual))
 		node.SetTextStyle(ct.cfg.Theme.ChannelsTree.Unread.Style)
 	} else {
+		node.SetText(base)
 		node.SetTextStyle(ct.cfg.Theme.ChannelsTree.Channel.Style)
+		delete(ct.unreadCounts, channelID)
 	}
+}
+
+// badgeRe matches a trailing " (N)" badge on node text.
+var badgeRe = regexp.MustCompile(` \(\d+\)$`)
+
+// stripBadge removes a trailing " (N)" badge from node text.
+func stripBadge(text string) string {
+	return badgeRe.ReplaceAllString(text, "")
+}
+
+// UnreadCount returns the current unread count for a channel.
+func (ct *ChannelsTree) UnreadCount(channelID string) int {
+	return ct.unreadCounts[channelID]
 }
 
 // handleInput processes c (collapse) and p (parent) keys.

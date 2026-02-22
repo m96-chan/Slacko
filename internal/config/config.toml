@@ -45,6 +45,8 @@ quit = "Ctrl+C"
 help = "Rune[?]"
 switch_team = "Ctrl+T"
 command_mode = "Rune[:]"
+mark_read = "Rune[m]"
+mark_all_read = "Rune[M]"
 
 [keybinds.channels_tree]
 up = "Rune[k]"

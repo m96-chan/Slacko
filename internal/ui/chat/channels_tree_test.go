@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/slack-go/slack"
@@ -198,6 +199,70 @@ func TestSetUnread(t *testing.T) {
 	ct.SetUnread("C1", true)
 	ct.SetUnread("C1", false)
 	ct.SetUnread("INVALID", true)
+}
+
+func TestStripBadge(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"# general (5)", "# general"},
+		{"🔒 secret (12)", "🔒 secret"},
+		{"● alice (1)", "● alice"},
+		{"# general", "# general"},
+		{"# general (abc)", "# general (abc)"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := stripBadge(tt.input)
+			if got != tt.want {
+				t.Errorf("stripBadge(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSetUnreadCount(t *testing.T) {
+	cfg := &config.Config{}
+	ct := NewChannelsTree(cfg, nil)
+
+	channels := []slack.Channel{
+		makeChannel("C1", "general", false, false, false),
+	}
+	ct.Populate(channels, map[string]slack.User{}, "SELF")
+
+	// Set count to 5.
+	ct.SetUnreadCount("C1", 5)
+	node := ct.nodeIndex["C1"]
+	if !strings.Contains(node.GetText(), "(5)") {
+		t.Errorf("expected badge (5) in %q", node.GetText())
+	}
+	if ct.UnreadCount("C1") != 5 {
+		t.Errorf("UnreadCount = %d, want 5", ct.UnreadCount("C1"))
+	}
+
+	// Increment with -1.
+	ct.SetUnreadCount("C1", -1)
+	if ct.UnreadCount("C1") != 6 {
+		t.Errorf("UnreadCount after increment = %d, want 6", ct.UnreadCount("C1"))
+	}
+	if !strings.Contains(node.GetText(), "(6)") {
+		t.Errorf("expected badge (6) in %q", node.GetText())
+	}
+
+	// Clear with 0.
+	ct.SetUnreadCount("C1", 0)
+	if strings.Contains(node.GetText(), "(") {
+		t.Errorf("expected no badge after clearing, got %q", node.GetText())
+	}
+	if ct.UnreadCount("C1") != 0 {
+		t.Errorf("UnreadCount after clear = %d, want 0", ct.UnreadCount("C1"))
+	}
+
+	// Invalid channel should not panic.
+	ct.SetUnreadCount("INVALID", 5)
 }
 
 // makeChannel is a test helper that creates a slack.Channel with the given properties.

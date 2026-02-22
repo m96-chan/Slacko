@@ -14,6 +14,8 @@ type Keybinds struct {
 	Help           string `toml:"help"`
 	SwitchTeam     string `toml:"switch_team"`
 	CommandMode    string `toml:"command_mode"`
+	MarkRead       string `toml:"mark_read"`
+	MarkAllRead    string `toml:"mark_all_read"`
 
 	ChannelsTree   ChannelsTreeKeybinds   `toml:"channels_tree"`
 	MessagesList   MessagesListKeybinds   `toml:"messages_list"`

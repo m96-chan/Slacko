@@ -48,6 +48,7 @@ type MessagesList struct {
 	onReactionAddRequest   OnReactionAddRequestFunc
 	onReactionRemoveRequest OnReactionRemoveRequestFunc
 	onFileOpenRequest      OnFileOpenRequestFunc
+	lastReadTS             string // last-read timestamp for "New messages" separator
 }
 
 // NewMessagesList creates a new messages list component.
@@ -109,6 +110,19 @@ func (ml *MessagesList) SetOnReactionRemoveRequest(fn OnReactionRemoveRequestFun
 // SetOnFileOpenRequest sets the callback for opening/downloading files.
 func (ml *MessagesList) SetOnFileOpenRequest(fn OnFileOpenRequestFunc) {
 	ml.onFileOpenRequest = fn
+}
+
+// SetLastRead sets the last-read timestamp for the "New messages" separator.
+func (ml *MessagesList) SetLastRead(ts string) {
+	ml.lastReadTS = ts
+}
+
+// LatestTimestamp returns the timestamp of the newest message, or empty string.
+func (ml *MessagesList) LatestTimestamp() string {
+	if len(ml.messages) == 0 {
+		return ""
+	}
+	return ml.messages[len(ml.messages)-1].Timestamp
 }
 
 // IncrementReplyCount increments the reply count on a parent message.
@@ -275,6 +289,7 @@ func (ml *MessagesList) render() {
 	var prevDate string
 	var prevUser string
 	var prevTime time.Time
+	newMsgSeparatorShown := false
 
 	for i, msg := range ml.messages {
 		// Skip thread replies that aren't the parent message.
@@ -293,6 +308,14 @@ func (ml *MessagesList) render() {
 			b.WriteString(formatDateSeparator(dateStr, ml.cfg.DateSeparator.Character))
 			b.WriteString("\n")
 			prevDate = dateStr
+			prevUser = ""
+		}
+
+		// "New messages" separator — shown once at the first message after lastReadTS.
+		if !newMsgSeparatorShown && ml.lastReadTS != "" && msg.Timestamp > ml.lastReadTS {
+			b.WriteString(formatNewMessagesSeparator(ml.cfg.DateSeparator.Character))
+			b.WriteString("\n")
+			newMsgSeparatorShown = true
 			prevUser = ""
 		}
 
@@ -534,6 +557,20 @@ func formatDateSeparator(date, char string) string {
 	}
 	side := strings.Repeat(char, sideLen)
 	return fmt.Sprintf("[gray]%s%s%s[-]", side, label, side)
+}
+
+// formatNewMessagesSeparator creates a centered red "New messages" separator line.
+func formatNewMessagesSeparator(char string) string {
+	if char == "" {
+		char = "─"
+	}
+	label := " New messages "
+	sideLen := (50 - len(label)) / 2
+	if sideLen < 3 {
+		sideLen = 3
+	}
+	side := strings.Repeat(char, sideLen)
+	return fmt.Sprintf("[red]%s%s%s[-]", side, label, side)
 }
 
 // resolveUserName returns the best display name for a message author.

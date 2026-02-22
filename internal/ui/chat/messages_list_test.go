@@ -318,6 +318,105 @@ func TestRender_MessageGrouping(t *testing.T) {
 	}
 }
 
+func TestFormatNewMessagesSeparator(t *testing.T) {
+	result := formatNewMessagesSeparator("─")
+	if !strings.Contains(result, "New messages") {
+		t.Errorf("separator should contain 'New messages', got %q", result)
+	}
+	if !strings.HasPrefix(result, "[red]") {
+		t.Errorf("separator should have red color tag, got %q", result)
+	}
+}
+
+func TestFormatNewMessagesSeparator_EmptyChar(t *testing.T) {
+	result := formatNewMessagesSeparator("")
+	if !strings.Contains(result, "─") {
+		t.Errorf("empty char should default to ─, got %q", result)
+	}
+}
+
+func TestLatestTimestamp(t *testing.T) {
+	cfg := &config.Config{}
+	ml := NewMessagesList(cfg)
+
+	// Empty messages.
+	if ts := ml.LatestTimestamp(); ts != "" {
+		t.Errorf("LatestTimestamp() = %q, want empty", ts)
+	}
+
+	// With messages (SetMessages reverses newest-first to oldest-first).
+	messages := []slack.Message{
+		makeMsg("1700000003.000000", "U1", "Third"),
+		makeMsg("1700000001.000000", "U1", "First"),
+	}
+	ml.SetMessages("C1", messages, map[string]slack.User{})
+
+	if ts := ml.LatestTimestamp(); ts != "1700000003.000000" {
+		t.Errorf("LatestTimestamp() = %q, want 1700000003.000000", ts)
+	}
+}
+
+func TestSetLastRead(t *testing.T) {
+	cfg := &config.Config{}
+	ml := NewMessagesList(cfg)
+
+	ml.SetLastRead("1700000001.000000")
+	if ml.lastReadTS != "1700000001.000000" {
+		t.Errorf("lastReadTS = %q, want 1700000001.000000", ml.lastReadTS)
+	}
+}
+
+func TestRender_NewMessagesSeparator(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.DateSeparator.Enabled = true
+	cfg.DateSeparator.Character = "─"
+	cfg.Timestamps.Enabled = true
+	cfg.Timestamps.Format = "3:04PM"
+	ml := NewMessagesList(cfg)
+
+	// Set lastRead to be before the second message.
+	ml.SetLastRead("1700000001.000000")
+
+	// History returns newest-first.
+	messages := []slack.Message{
+		makeMsg("1700000002.000000", "U1", "Second"),
+		makeMsg("1700000001.000000", "U1", "First"),
+	}
+	ml.SetMessages("C1", messages, map[string]slack.User{
+		"U1": {ID: "U1", Name: "alice"},
+	})
+
+	text := ml.GetText(false)
+	if !strings.Contains(text, "New messages") {
+		t.Errorf("expected 'New messages' separator in rendered text:\n%s", text)
+	}
+}
+
+func TestRender_NoSeparatorWhenAllRead(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.DateSeparator.Enabled = true
+	cfg.DateSeparator.Character = "─"
+	cfg.Timestamps.Enabled = true
+	cfg.Timestamps.Format = "3:04PM"
+	ml := NewMessagesList(cfg)
+
+	// Set lastRead to the latest message — no separator should appear.
+	ml.SetLastRead("1700000002.000000")
+
+	messages := []slack.Message{
+		makeMsg("1700000002.000000", "U1", "Second"),
+		makeMsg("1700000001.000000", "U1", "First"),
+	}
+	ml.SetMessages("C1", messages, map[string]slack.User{
+		"U1": {ID: "U1", Name: "alice"},
+	})
+
+	text := ml.GetText(false)
+	if strings.Contains(text, "New messages") {
+		t.Errorf("should not show 'New messages' separator when all are read:\n%s", text)
+	}
+}
+
 // makeMsg creates a test slack.Message.
 func makeMsg(ts, user, text string) slack.Message {
 	msg := slack.Message{}
