@@ -16,6 +16,7 @@ import (
 
 	"github.com/m96-chan/Slacko/internal/config"
 	"github.com/m96-chan/Slacko/internal/keyring"
+	"github.com/m96-chan/Slacko/internal/notifications"
 	slackclient "github.com/m96-chan/Slacko/internal/slack"
 	"github.com/m96-chan/Slacko/internal/ui/chat"
 	"github.com/m96-chan/Slacko/internal/ui/keys"
@@ -29,18 +30,22 @@ type App struct {
 	tview    *tview.Application
 	slack    *slackclient.Client
 	chatView *chat.View
+	notifier *notifications.Notifier
 	cancel   context.CancelFunc
 	channels []slack.Channel
 	users    map[string]slack.User
+	dmSet    map[string]bool // set of DM channel IDs
 	mu       sync.Mutex
 }
 
 // New creates a new App with the given config.
 func New(cfg *config.Config) *App {
 	return &App{
-		Config: cfg,
-		tview:  tview.NewApplication(),
-		users:  make(map[string]slack.User),
+		Config:   cfg,
+		tview:    tview.NewApplication(),
+		users:    make(map[string]slack.User),
+		dmSet:    make(map[string]bool),
+		notifier: notifications.New(),
 	}
 }
 
@@ -266,6 +271,9 @@ func (a *App) showMain() {
 					a.chatView.ThreadView.AppendReply(msg)
 				}
 			})
+
+			// Desktop notifications.
+			a.maybeNotify(evt)
 		},
 		OnMessageChanged: func(evt *slackevents.MessageEvent) {
 			if evt.Message == nil {
@@ -330,9 +338,17 @@ func (a *App) fetchInitialData() {
 		userMap[u.ID] = u
 	}
 
+	dmSet := make(map[string]bool)
+	for _, ch := range channels {
+		if ch.IsIM {
+			dmSet[ch.ID] = true
+		}
+	}
+
 	a.mu.Lock()
 	a.channels = channels
 	a.users = userMap
+	a.dmSet = dmSet
 	a.mu.Unlock()
 
 	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
@@ -453,6 +469,53 @@ func (a *App) onMessageEdit(channelID, timestamp, text string) {
 			slog.Error("failed to edit message", "channel", channelID, "error", err)
 		}
 	}()
+}
+
+// maybeNotify sends a desktop notification if the message warrants one.
+func (a *App) maybeNotify(evt *slackevents.MessageEvent) {
+	if !a.Config.Notifications.Enabled {
+		return
+	}
+	// Never notify for own messages.
+	if evt.User == a.slack.UserID {
+		return
+	}
+
+	a.mu.Lock()
+	isDM := a.dmSet[evt.Channel]
+	users := a.users
+	a.mu.Unlock()
+
+	mention := notifications.DetectMention(evt.Text, a.slack.UserID, isDM)
+	if mention == notifications.MentionNone {
+		return
+	}
+
+	// Resolve sender name.
+	sender := evt.User
+	if u, ok := users[evt.User]; ok {
+		if u.Profile.DisplayName != "" {
+			sender = u.Profile.DisplayName
+		} else if u.RealName != "" {
+			sender = u.RealName
+		} else if u.Name != "" {
+			sender = u.Name
+		}
+	}
+
+	body := notifications.StripMrkdwn(evt.Text)
+
+	var title string
+	switch mention {
+	case notifications.MentionDM:
+		title = fmt.Sprintf("DM from %s", sender)
+	case notifications.MentionDirect:
+		title = fmt.Sprintf("%s mentioned you", sender)
+	default:
+		title = fmt.Sprintf("%s in channel", sender)
+	}
+
+	a.notifier.Send(title, body)
 }
 
 // fetchAllChannels retrieves all conversations with pagination.
