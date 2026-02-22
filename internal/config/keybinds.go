@@ -6,8 +6,9 @@ type Keybinds struct {
 	FocusChannels string `toml:"focus_channels"`
 	FocusMessages string `toml:"focus_messages"`
 	FocusInput    string `toml:"focus_input"`
-	ToggleThread  string `toml:"toggle_thread"`
-	Quit          string `toml:"quit"`
+	ToggleThread   string `toml:"toggle_thread"`
+	ToggleChannels string `toml:"toggle_channels"`
+	Quit           string `toml:"quit"`
 	Help          string `toml:"help"`
 	SwitchTeam    string `toml:"switch_team"`
 	CommandMode   string `toml:"command_mode"`

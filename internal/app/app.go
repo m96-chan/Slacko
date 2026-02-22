@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -17,6 +16,8 @@ import (
 	"github.com/m96-chan/Slacko/internal/config"
 	"github.com/m96-chan/Slacko/internal/keyring"
 	slackclient "github.com/m96-chan/Slacko/internal/slack"
+	"github.com/m96-chan/Slacko/internal/ui/chat"
+	"github.com/m96-chan/Slacko/internal/ui/keys"
 	"github.com/m96-chan/Slacko/internal/ui/login"
 	"github.com/rivo/tview"
 )
@@ -26,6 +27,7 @@ type App struct {
 	Config   *config.Config
 	tview    *tview.Application
 	slack    *slackclient.Client
+	chatView *chat.View
 	cancel   context.CancelFunc
 	channels []slack.Channel
 	users    map[string]slack.User
@@ -90,20 +92,19 @@ func (a *App) shutdown() {
 	a.tview.Stop()
 }
 
-// normalizeKeyName converts tcell key names to the config format.
-// tcell outputs "Ctrl-C" (hyphen) for bare Ctrl keys but config uses "Ctrl+C" (plus).
-func normalizeKeyName(name string) string {
-	return strings.ReplaceAll(name, "Ctrl-", "Ctrl+")
-}
-
 // handleGlobalKey processes global keybindings. It returns nil to consume the
 // event or the original event to let it propagate.
 func (a *App) handleGlobalKey(event *tcell.EventKey) *tcell.EventKey {
-	name := normalizeKeyName(event.Name())
+	name := keys.Normalize(event.Name())
 
 	if name == a.Config.Keybinds.Quit {
 		a.shutdown()
 		return nil
+	}
+
+	// Delegate to chat view if active.
+	if a.chatView != nil {
+		return a.chatView.HandleKey(event)
 	}
 
 	return event
@@ -118,20 +119,19 @@ func (a *App) showLogin() {
 	a.tview.SetRoot(form, true)
 }
 
-// showMain sets the root to the main view and starts Socket Mode in the
-// background. Currently a placeholder that displays the authenticated identity
-// and connection status.
+// showMain sets the root to the chat layout and starts Socket Mode in the
+// background.
 func (a *App) showMain() {
 	// Cancel any previous Socket Mode connection.
 	if a.cancel != nil {
 		a.cancel()
 	}
 
-	text := tview.NewTextView().
-		SetTextAlign(tview.AlignCenter).
-		SetText(fmt.Sprintf("authenticated as %s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
-
-	a.tview.SetRoot(text, true)
+	a.chatView = chat.New(a.tview, a.Config)
+	a.chatView.StatusBar.SetConnectionStatus(
+		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
+	a.tview.SetRoot(a.chatView, true)
+	a.chatView.FocusPanel(chat.PanelMessages)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
@@ -140,16 +140,18 @@ func (a *App) showMain() {
 		OnConnected: func() {
 			slog.Info("socket mode connected")
 			a.tview.QueueUpdateDraw(func() {
-				text.SetText(fmt.Sprintf("authenticated as %s (%s) — connected", a.slack.UserName, a.slack.TeamName))
+				a.chatView.StatusBar.SetConnectionStatus(
+					fmt.Sprintf("%s (%s) — connected", a.slack.UserName, a.slack.TeamName))
 			})
 
 			// Fetch initial channel and user data.
-			go a.fetchInitialData(text)
+			go a.fetchInitialData()
 		},
 		OnDisconnected: func() {
 			slog.Warn("socket mode disconnected")
 			a.tview.QueueUpdateDraw(func() {
-				text.SetText(fmt.Sprintf("authenticated as %s (%s) — disconnected", a.slack.UserName, a.slack.TeamName))
+				a.chatView.StatusBar.SetConnectionStatus(
+					fmt.Sprintf("%s (%s) — disconnected", a.slack.UserName, a.slack.TeamName))
 			})
 		},
 		OnError: func(err error) {
@@ -165,7 +167,7 @@ func (a *App) showMain() {
 }
 
 // fetchInitialData loads channels and users from Slack after connecting.
-func (a *App) fetchInitialData(text *tview.TextView) {
+func (a *App) fetchInitialData() {
 	channels, err := a.fetchAllChannels()
 	if err != nil {
 		slog.Error("failed to fetch channels", "error", err)
@@ -191,8 +193,9 @@ func (a *App) fetchInitialData(text *tview.TextView) {
 	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
 
 	a.tview.QueueUpdateDraw(func() {
-		text.SetText(fmt.Sprintf("authenticated as %s (%s) — connected (%d channels, %d users)",
-			a.slack.UserName, a.slack.TeamName, len(channels), len(users)))
+		a.chatView.StatusBar.SetConnectionStatus(
+			fmt.Sprintf("%s (%s) — connected (%d channels, %d users)",
+				a.slack.UserName, a.slack.TeamName, len(channels), len(users)))
 	})
 }
 
