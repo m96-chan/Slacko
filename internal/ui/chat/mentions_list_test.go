@@ -224,6 +224,67 @@ func TestFindAutocompleteTrigger(t *testing.T) {
 	}
 }
 
+func TestMentionsList_SetCommands(t *testing.T) {
+	ml := newTestMentionsList()
+	cmds := BuiltinCommandEntries()
+	ml.SetCommands(cmds)
+
+	if len(ml.commands) != len(cmds) {
+		t.Fatalf("commands length = %d, want %d", len(ml.commands), len(cmds))
+	}
+}
+
+func TestMentionsList_FilterCommands(t *testing.T) {
+	ml := newTestMentionsList()
+	cmds := BuiltinCommandEntries()
+	ml.SetCommands(cmds)
+
+	// Filter with prefix.
+	count := ml.Filter(acCommand, "hel", 10)
+	if count < 1 {
+		t.Errorf("filtering commands for 'hel' should match at least /help, got %d", count)
+	}
+
+	// Empty prefix should show all commands (up to limit).
+	count = ml.Filter(acCommand, "", 100)
+	if count != len(cmds) {
+		t.Errorf("empty prefix should show all %d commands, got %d", len(cmds), count)
+	}
+}
+
+func TestMentionsList_FilterCommandsLimit(t *testing.T) {
+	ml := newTestMentionsList()
+	cmds := BuiltinCommandEntries()
+	ml.SetCommands(cmds)
+
+	// Limit below total commands.
+	count := ml.Filter(acCommand, "", 3)
+	if count != 3 {
+		t.Errorf("should limit to 3 commands, got %d", count)
+	}
+}
+
+func TestFindAutocompleteTrigger_Command(t *testing.T) {
+	kind, prefix, start := findAutocompleteTrigger("/hel")
+	if kind != acCommand {
+		t.Errorf("kind = %d, want acCommand", kind)
+	}
+	if prefix != "hel" {
+		t.Errorf("prefix = %q, want %q", prefix, "hel")
+	}
+	if start != 0 {
+		t.Errorf("start = %d, want 0", start)
+	}
+}
+
+func TestFindAutocompleteTrigger_CommandAfterSpace(t *testing.T) {
+	// Once there's a space, it's no longer a command trigger.
+	kind, _, _ := findAutocompleteTrigger("/help args")
+	if kind != acNone {
+		t.Errorf("kind = %d, want acNone (space stops command trigger)", kind)
+	}
+}
+
 func TestMessageInput_CompleteAutocomplete(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Keybinds.MessageInput.Send = "Enter"

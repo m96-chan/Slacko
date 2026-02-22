@@ -1,5 +1,9 @@
 # Slacko
 
+[![CI](https://github.com/m96-chan/Slacko/actions/workflows/ci.yml/badge.svg)](https://github.com/m96-chan/Slacko/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/m96-chan/Slacko)](https://goreportcard.com/report/github.com/m96-chan/Slacko)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A lightweight, keyboard-driven TUI (Terminal User Interface) client for [Slack](https://slack.com), built in Go. Inspired by [discordo](https://github.com/ayn2op/discordo).
 
 > [!WARNING]

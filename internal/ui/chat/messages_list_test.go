@@ -404,6 +404,266 @@ func TestRender_NoSeparatorWhenAllRead(t *testing.T) {
 	}
 }
 
+func TestSetSelfUserID(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	ml.SetSelfUserID("U123")
+	if ml.selfUserID != "U123" {
+		t.Errorf("selfUserID = %q, want %q", ml.selfUserID, "U123")
+	}
+}
+
+func TestSetSelfTeamID(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	ml.SetSelfTeamID("T123")
+	if ml.selfTeamID != "T123" {
+		t.Errorf("selfTeamID = %q, want %q", ml.selfTeamID, "T123")
+	}
+}
+
+func TestSetChannelNames(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	names := map[string]string{"C1": "general", "C2": "random"}
+	ml.SetChannelNames(names)
+	if len(ml.channelNames) != 2 {
+		t.Errorf("channelNames len = %d, want 2", len(ml.channelNames))
+	}
+}
+
+func TestSetPinnedMessages(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	ml.SetMessages("C1", nil, map[string]slack.User{})
+	ml.SetPinnedMessages([]string{"ts1", "ts2"})
+	if !ml.pinnedSet["ts1"] || !ml.pinnedSet["ts2"] {
+		t.Errorf("pinnedSet should contain ts1 and ts2")
+	}
+}
+
+func TestSetPinned(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	ml.SetMessages("C1", nil, map[string]slack.User{})
+
+	ml.SetPinned("ts1", true)
+	if !ml.pinnedSet["ts1"] {
+		t.Error("ts1 should be pinned")
+	}
+
+	ml.SetPinned("ts1", false)
+	if ml.pinnedSet["ts1"] {
+		t.Error("ts1 should be unpinned")
+	}
+}
+
+func TestSetStarredMessages(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	ml.SetMessages("C1", nil, map[string]slack.User{})
+	ml.SetStarredMessages([]string{"ts1", "ts3"})
+	if !ml.starredSet["ts1"] || !ml.starredSet["ts3"] {
+		t.Errorf("starredSet should contain ts1 and ts3")
+	}
+}
+
+func TestSetStarred(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+	ml.SetMessages("C1", nil, map[string]slack.User{})
+
+	ml.SetStarred("ts1", true)
+	if !ml.starredSet["ts1"] {
+		t.Error("ts1 should be starred")
+	}
+
+	ml.SetStarred("ts1", false)
+	if ml.starredSet["ts1"] {
+		t.Error("ts1 should be unstarred")
+	}
+}
+
+func TestUpdateMessage(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+
+	messages := []slack.Message{
+		makeMsg("1700000001.000000", "U1", "Original"),
+	}
+	ml.SetMessages("C1", messages, map[string]slack.User{})
+
+	ml.UpdateMessage("C1", "1700000001.000000", "Updated")
+	if ml.messages[0].Text != "Updated" {
+		t.Errorf("text = %q, want %q", ml.messages[0].Text, "Updated")
+	}
+	if ml.messages[0].Edited == nil {
+		t.Error("Edited should be set")
+	}
+
+	// Wrong channel should be ignored.
+	ml.UpdateMessage("C2", "1700000001.000000", "Ignored")
+	if ml.messages[0].Text != "Updated" {
+		t.Errorf("wrong channel should be ignored, text = %q", ml.messages[0].Text)
+	}
+}
+
+func TestIncrementReplyCount(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+
+	messages := []slack.Message{
+		makeMsg("1700000001.000000", "U1", "Parent"),
+	}
+	ml.SetMessages("C1", messages, map[string]slack.User{})
+
+	ml.IncrementReplyCount("C1", "1700000001.000000")
+	if ml.messages[0].ReplyCount != 1 {
+		t.Errorf("reply count = %d, want 1", ml.messages[0].ReplyCount)
+	}
+
+	ml.IncrementReplyCount("C1", "1700000001.000000")
+	if ml.messages[0].ReplyCount != 2 {
+		t.Errorf("reply count = %d, want 2", ml.messages[0].ReplyCount)
+	}
+
+	// Wrong channel should be ignored.
+	ml.IncrementReplyCount("C2", "1700000001.000000")
+	if ml.messages[0].ReplyCount != 2 {
+		t.Errorf("wrong channel should be ignored, reply count = %d", ml.messages[0].ReplyCount)
+	}
+}
+
+func TestFormatAttachments(t *testing.T) {
+	theme := config.BuiltinTheme("default")
+	styles := attachmentStyles{
+		Title:  theme.MessagesList.FileAttachment,
+		Text:   theme.MessagesList.FileAttachment,
+		Footer: theme.MessagesList.FileAttachment,
+	}
+
+	t.Run("empty", func(t *testing.T) {
+		got := formatAttachments(nil, styles, false)
+		if got != "" {
+			t.Errorf("expected empty for nil attachments, got %q", got)
+		}
+	})
+
+	t.Run("with title and text", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{Title: "Test Article", Text: "Some body text"},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "Test Article") {
+			t.Error("missing title")
+		}
+		if !strings.Contains(got, "Some body text") {
+			t.Error("missing body text")
+		}
+	})
+
+	t.Run("with author", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{AuthorName: "John", Title: "Post"},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "John") {
+			t.Error("missing author")
+		}
+	})
+
+	t.Run("with pretext", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{Pretext: "Before block", Title: "Card"},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "Before block") {
+			t.Error("missing pretext")
+		}
+	})
+
+	t.Run("with image", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{Title: "Photo", ImageURL: "http://example.com/img.png", ImageWidth: 640, ImageHeight: 480},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "640x480") {
+			t.Error("missing image dimensions")
+		}
+	})
+
+	t.Run("with footer", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{Title: "Link", Footer: "example.com"},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "example.com") {
+			t.Error("missing footer")
+		}
+	})
+
+	t.Run("skip empty attachment", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{},
+			{Title: "Real one"},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "Real one") {
+			t.Error("missing non-empty attachment")
+		}
+	})
+
+	t.Run("truncate long text", func(t *testing.T) {
+		longText := strings.Repeat("a", 500)
+		atts := []slack.Attachment{
+			{Title: "Long", Text: longText},
+		}
+		got := formatAttachments(atts, styles, false)
+		if !strings.Contains(got, "…") {
+			t.Error("expected truncation ellipsis")
+		}
+	})
+
+	t.Run("show links fallback", func(t *testing.T) {
+		atts := []slack.Attachment{
+			{Title: "Article", FromURL: "http://example.com/article"},
+		}
+		got := formatAttachments(atts, styles, true)
+		if !strings.Contains(got, "example.com/article") {
+			t.Error("missing FromURL in footer when showLinks=true")
+		}
+	})
+}
+
+func TestMessageListSetterCallbacks(t *testing.T) {
+	cfg := testConfig()
+	ml := NewMessagesList(cfg)
+
+	// Test all setter callbacks don't panic.
+	ml.SetOnReplyRequest(func(string, string, string) {})
+	ml.SetOnEditRequest(func(string, string, string) {})
+	ml.SetOnThreadRequest(func(string, string) {})
+	ml.SetOnReactionAddRequest(func(string, string) {})
+	ml.SetOnReactionRemoveRequest(func(string, string, string) {})
+	ml.SetOnFileOpenRequest(func(string, slack.File) {})
+	ml.SetOnPinRequest(func(string, string, bool) {})
+	ml.SetOnStarRequest(func(string, string, bool) {})
+	ml.SetOnYank(func(string) {})
+	ml.SetOnCopyPermalink(func(string, string) {})
+	ml.SetOnUserProfileRequest(func(string) {})
+
+	// Verify they're set.
+	if ml.onReplyRequest == nil {
+		t.Error("onReplyRequest not set")
+	}
+	if ml.onEditRequest == nil {
+		t.Error("onEditRequest not set")
+	}
+	if ml.onThreadRequest == nil {
+		t.Error("onThreadRequest not set")
+	}
+}
+
 // makeMsg creates a test slack.Message.
 func makeMsg(ts, user, text string) slack.Message {
 	msg := slack.Message{}

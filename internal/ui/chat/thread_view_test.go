@@ -216,3 +216,56 @@ func TestThreadView_Clear(t *testing.T) {
 		t.Errorf("messages should be empty after Clear, got %d", len(tv.messages))
 	}
 }
+
+func TestThreadView_FocusReplies(t *testing.T) {
+	tv := newTestThreadView()
+	parent := makeThreadMsg("U1", "parent", "1000.0", "1000.0")
+	tv.SetMessages("C123", "1000.0", []slack.Message{parent}, nil)
+
+	tv.FocusReplies()
+	if tv.IsInputFocused() {
+		t.Error("should be focused on replies, not input")
+	}
+}
+
+func TestThreadView_FocusInput(t *testing.T) {
+	tv := newTestThreadView()
+	parent := makeThreadMsg("U1", "parent", "1000.0", "1000.0")
+	tv.SetMessages("C123", "1000.0", []slack.Message{parent}, nil)
+
+	tv.FocusInput()
+	if !tv.IsInputFocused() {
+		t.Error("should be focused on input")
+	}
+}
+
+func TestThreadView_SetChannelNames(t *testing.T) {
+	tv := newTestThreadView()
+	names := map[string]string{"C1": "general"}
+	tv.SetChannelNames(names)
+	if len(tv.channelNames) != 1 {
+		t.Errorf("channelNames len = %d, want 1", len(tv.channelNames))
+	}
+}
+
+func TestThreadView_SetSelfTeamID(t *testing.T) {
+	tv := newTestThreadView()
+	tv.SetSelfTeamID("T123")
+	if tv.selfTeamID != "T123" {
+		t.Errorf("selfTeamID = %q, want %q", tv.selfTeamID, "T123")
+	}
+}
+
+func TestThreadView_UpdateUsers(t *testing.T) {
+	tv := newTestThreadView()
+	parent := makeThreadMsg("U1", "parent", "1000.0", "1000.0")
+	tv.SetMessages("C123", "1000.0", []slack.Message{parent}, nil)
+
+	users := map[string]slack.User{
+		"U1": {ID: "U1", Name: "alice"},
+	}
+	tv.UpdateUsers(users)
+	if len(tv.users) != 1 {
+		t.Errorf("users len = %d, want 1", len(tv.users))
+	}
+}
