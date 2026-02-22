@@ -311,12 +311,19 @@ func (a *App) fetchInitialData() {
 
 	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
 
+	channelNames := make(map[string]string, len(channels))
+	for _, ch := range channels {
+		channelNames[ch.ID] = ch.Name
+	}
+
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.ChannelsTree.Populate(channels, userMap, a.slack.UserID)
 		a.chatView.ChannelsPicker.SetData(channels, userMap, a.slack.UserID)
 		a.chatView.MentionsList.SetUsers(userMap)
 		a.chatView.MentionsList.SetChannels(channels, userMap, a.slack.UserID)
 		a.chatView.MessagesList.SetSelfUserID(a.slack.UserID)
+		a.chatView.MessagesList.SetChannelNames(channelNames)
+		a.chatView.ThreadView.SetChannelNames(channelNames)
 		a.chatView.StatusBar.SetConnectionStatus(
 			fmt.Sprintf("%s (%s) — connected (%d channels, %d users)",
 				a.slack.UserName, a.slack.TeamName, len(channels), len(users)))

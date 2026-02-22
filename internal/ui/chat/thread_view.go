@@ -9,6 +9,7 @@ import (
 	"github.com/slack-go/slack"
 
 	"github.com/m96-chan/Slacko/internal/config"
+	"github.com/m96-chan/Slacko/internal/markdown"
 	"github.com/m96-chan/Slacko/internal/ui/keys"
 )
 
@@ -29,6 +30,7 @@ type ThreadView struct {
 	threadTS     string
 	messages     []slack.Message // first is parent, rest are replies
 	users        map[string]slack.User
+	channelNames map[string]string // channelID → name
 	selectedIdx  int
 	inputFocused bool
 	onSend       OnThreadReplyFunc
@@ -38,10 +40,11 @@ type ThreadView struct {
 // NewThreadView creates a new thread view component.
 func NewThreadView(app *tview.Application, cfg *config.Config) *ThreadView {
 	tv := &ThreadView{
-		app:         app,
-		cfg:         cfg,
-		selectedIdx: -1,
-		users:       make(map[string]slack.User),
+		app:          app,
+		cfg:          cfg,
+		selectedIdx:  -1,
+		users:        make(map[string]slack.User),
+		channelNames: make(map[string]string),
 	}
 
 	tv.repliesView = tview.NewTextView()
@@ -63,6 +66,11 @@ func NewThreadView(app *tview.Application, cfg *config.Config) *ThreadView {
 		AddItem(tv.replyInput, 3, 0, false)
 
 	return tv
+}
+
+// SetChannelNames sets the channel ID → name map for mention rendering.
+func (tv *ThreadView) SetChannelNames(names map[string]string) {
+	tv.channelNames = names
 }
 
 // SetOnSend sets the callback for sending thread replies.
@@ -190,9 +198,10 @@ func (tv *ThreadView) render() {
 
 		// Message text.
 		if msg.Text != "" {
-			resolved := resolveUserMentions(msg.Text, tv.users)
-			for _, line := range strings.Split(resolved, "\n") {
-				fmt.Fprintf(&b, "  %s\n", tview.Escape(line))
+			rendered := markdown.Render(msg.Text, tv.users, tv.channelNames,
+				tv.cfg.Markdown.Enabled, tv.cfg.Markdown.SyntaxTheme)
+			for _, line := range strings.Split(rendered, "\n") {
+				fmt.Fprintf(&b, "  %s\n", line)
 			}
 		}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/slack-go/slack"
 
 	"github.com/m96-chan/Slacko/internal/config"
+	"github.com/m96-chan/Slacko/internal/markdown"
 )
 
 func TestParseSlackTimestamp(t *testing.T) {
@@ -107,9 +108,9 @@ func TestResolveUserMentions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveUserMentions(tt.text, users)
+			got := markdown.Render(tt.text, users, nil, false, "")
 			if got != tt.want {
-				t.Errorf("resolveUserMentions(%q) = %q, want %q", tt.text, got, tt.want)
+				t.Errorf("Render(%q, disabled) = %q, want %q", tt.text, got, tt.want)
 			}
 		})
 	}

@@ -36,7 +36,8 @@ type Config struct {
 
 // MarkdownConfig controls markdown rendering in messages.
 type MarkdownConfig struct {
-	Enabled bool `toml:"enabled"`
+	Enabled     bool   `toml:"enabled"`
+	SyntaxTheme string `toml:"syntax_theme"`
 }
 
 // Timestamps controls message timestamp display.

@@ -2,7 +2,6 @@ package chat
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -12,12 +11,11 @@ import (
 	"github.com/slack-go/slack"
 
 	"github.com/m96-chan/Slacko/internal/config"
+	"github.com/m96-chan/Slacko/internal/markdown"
 	"github.com/m96-chan/Slacko/internal/ui/keys"
 )
 
 const messageGroupingWindow = 5 * time.Minute
-
-var userMentionRe = regexp.MustCompile(`<@(U[A-Z0-9]+)(?:\|([^>]*)?)?>`)
 
 // OnReplyRequestFunc is called when the user requests to reply to a message.
 type OnReplyRequestFunc func(channelID, threadTS, userName string)
@@ -31,6 +29,7 @@ type MessagesList struct {
 	cfg              *config.Config
 	messages         []slack.Message          // oldest first
 	users            map[string]slack.User
+	channelNames     map[string]string        // channelID → name
 	selectedIdx      int                      // -1 = no selection
 	channelID        string
 	selfUserID       string
@@ -42,10 +41,11 @@ type MessagesList struct {
 // NewMessagesList creates a new messages list component.
 func NewMessagesList(cfg *config.Config) *MessagesList {
 	ml := &MessagesList{
-		TextView:    tview.NewTextView(),
-		cfg:         cfg,
-		selectedIdx: -1,
-		users:       make(map[string]slack.User),
+		TextView:     tview.NewTextView(),
+		cfg:          cfg,
+		selectedIdx:  -1,
+		users:        make(map[string]slack.User),
+		channelNames: make(map[string]string),
 	}
 
 	ml.SetDynamicColors(true)
@@ -62,6 +62,11 @@ func NewMessagesList(cfg *config.Config) *MessagesList {
 // SetSelfUserID sets the current user's ID for edit permission checks.
 func (ml *MessagesList) SetSelfUserID(id string) {
 	ml.selfUserID = id
+}
+
+// SetChannelNames sets the channel ID → name map for mention rendering.
+func (ml *MessagesList) SetChannelNames(names map[string]string) {
+	ml.channelNames = names
 }
 
 // SetOnReplyRequest sets the callback for reply requests.
@@ -266,10 +271,10 @@ func (ml *MessagesList) render() {
 		if text := systemMessageText(msg, ml.users); text != "" {
 			fmt.Fprintf(&b, "  [gray::d]%s[-::-]\n", tview.Escape(text))
 		} else if msg.Text != "" {
-			// Regular message text with user mention resolution.
-			resolved := resolveUserMentions(msg.Text, ml.users)
-			for _, line := range strings.Split(resolved, "\n") {
-				fmt.Fprintf(&b, "  %s\n", tview.Escape(line))
+			rendered := markdown.Render(msg.Text, ml.users, ml.channelNames,
+				ml.cfg.Markdown.Enabled, ml.cfg.Markdown.SyntaxTheme)
+			for _, line := range strings.Split(rendered, "\n") {
+				fmt.Fprintf(&b, "  %s\n", line)
 			}
 		}
 
@@ -460,32 +465,6 @@ func resolveUserName(userID, username, botID string, users map[string]slack.User
 		return userID
 	}
 	return "unknown"
-}
-
-// resolveUserMentions replaces <@U123> patterns with @displayname.
-func resolveUserMentions(text string, users map[string]slack.User) string {
-	return userMentionRe.ReplaceAllStringFunc(text, func(match string) string {
-		subs := userMentionRe.FindStringSubmatch(match)
-		if len(subs) < 2 {
-			return match
-		}
-		userID := subs[1]
-		// If the mention includes a label, use it.
-		if len(subs) >= 3 && subs[2] != "" {
-			return "@" + subs[2]
-		}
-		if u, ok := users[userID]; ok {
-			name := u.Profile.DisplayName
-			if name == "" {
-				name = u.Name
-			}
-			if name == "" {
-				name = userID
-			}
-			return "@" + name
-		}
-		return "@" + userID
-	})
 }
 
 // systemMessageText returns display text for system message subtypes.
