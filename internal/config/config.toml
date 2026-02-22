@@ -8,10 +8,10 @@ download_dir = ""
 ascii_icons = false
 
 [oauth]
-client_id = ""
+client_id = "10586769954784.10543233988087"
 client_secret = ""
 app_token = ""
-proxy_url = ""
+proxy_url = "https://slacko-oauth.m96-chan.dev"
 
 [markdown]
 enabled = true
