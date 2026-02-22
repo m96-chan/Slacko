@@ -56,6 +56,11 @@ func (c *Client) RunSocketMode(ctx context.Context, handler *EventHandler) error
 	registerEventHandlers(smHandler, handler)
 	registerLifecycleHandlers(smHandler, handler)
 
+	// Catch-all: log any unhandled socket mode events for debugging.
+	smHandler.HandleDefault(func(evt *socketmode.Event, _ *socketmode.Client) {
+		slog.Debug("unhandled socket mode event", "type", evt.Type, "data_type", fmt.Sprintf("%T", evt.Data))
+	})
+
 	return smHandler.RunEventLoopContext(ctx)
 }
 
@@ -68,12 +73,15 @@ func registerEventHandlers(smHandler *socketmode.SocketmodeHandler, handler *Eve
 
 		apiEvt, ok := evt.Data.(slackevents.EventsAPIEvent)
 		if !ok {
+			slog.Debug("message event: unexpected data type", "type", fmt.Sprintf("%T", evt.Data))
 			return
 		}
 		msg, ok := apiEvt.InnerEvent.Data.(*slackevents.MessageEvent)
 		if !ok {
+			slog.Debug("message event: unexpected inner type", "type", fmt.Sprintf("%T", apiEvt.InnerEvent.Data))
 			return
 		}
+		slog.Debug("message event received", "channel", msg.Channel, "user", msg.User, "subtype", msg.SubType)
 
 		switch msg.SubType {
 		case "message_changed":
@@ -145,6 +153,28 @@ func registerTypedHandler[T any](smHandler *socketmode.SocketmodeHandler, eventT
 // registerLifecycleHandlers wires socketmode-level connection events to the
 // appropriate EventHandler callbacks.
 func registerLifecycleHandlers(smHandler *socketmode.SocketmodeHandler, handler *EventHandler) {
+	smHandler.Handle(socketmode.EventTypeConnecting, func(evt *socketmode.Event, _ *socketmode.Client) {
+		slog.Debug("socket mode connecting")
+	})
+
+	smHandler.Handle(socketmode.EventTypeHello, func(evt *socketmode.Event, _ *socketmode.Client) {
+		slog.Debug("socket mode hello received")
+	})
+
+	smHandler.Handle(socketmode.EventTypeErrorWriteFailed, func(evt *socketmode.Event, _ *socketmode.Client) {
+		slog.Warn("socket mode write failed", "data", evt.Data)
+		if handler.OnError != nil {
+			handler.OnError(fmt.Errorf("socket mode write failed: %v", evt.Data))
+		}
+	})
+
+	smHandler.Handle(socketmode.EventTypeErrorBadMessage, func(evt *socketmode.Event, _ *socketmode.Client) {
+		slog.Warn("socket mode bad message", "data", evt.Data)
+		if handler.OnError != nil {
+			handler.OnError(fmt.Errorf("socket mode bad message: %v", evt.Data))
+		}
+	})
+
 	smHandler.Handle(socketmode.EventTypeConnected, func(evt *socketmode.Event, _ *socketmode.Client) {
 		slog.Info("socket mode connected")
 		if handler.OnConnected != nil {

@@ -6,6 +6,8 @@ type Keybinds struct {
 	FocusChannels  string `toml:"focus_channels"`
 	FocusMessages  string `toml:"focus_messages"`
 	FocusInput     string `toml:"focus_input"`
+	FocusPrevious  string `toml:"focus_previous"`
+	FocusNext      string `toml:"focus_next"`
 	ToggleThread   string `toml:"toggle_thread"`
 	ToggleChannels string `toml:"toggle_channels"`
 	ChannelPicker  string `toml:"channel_picker"`

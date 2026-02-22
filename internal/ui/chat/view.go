@@ -406,6 +406,16 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	// Focus cycling (Ctrl-based, works even in text input).
+	if name == v.cfg.Keybinds.FocusPrevious {
+		v.cycleFocus(-1)
+		return nil
+	}
+	if name == v.cfg.Keybinds.FocusNext {
+		v.cycleFocus(1)
+		return nil
+	}
+
 	// When a modal or command bar is visible, all other keys go to its input.
 	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.userProfileVisible || v.channelInfoVisible || v.commandBarVisible || v.workspaceVisible {
 		return event
@@ -686,6 +696,28 @@ func (v *View) CloseThread() {
 	}
 }
 
+// cycleFocus moves focus to the next or previous panel.
+// direction: +1 for next, -1 for previous.
+func (v *View) cycleFocus(direction int) {
+	panels := []Panel{PanelChannels, PanelMessages, PanelInput}
+	if v.threadVisible {
+		panels = append(panels, PanelThread)
+	}
+	if !v.channelsVisible {
+		panels = panels[1:] // skip PanelChannels
+	}
+
+	cur := 0
+	for i, p := range panels {
+		if p == v.activePanel {
+			cur = i
+			break
+		}
+	}
+	next := (cur + direction + len(panels)) % len(panels)
+	v.FocusPanel(panels[next])
+}
+
 // rebuildMainFlex reconstructs the main flex after toggling panels.
 // tview has no InsertItem, so we Clear() and re-add items.
 func (v *View) rebuildMainFlex() {
@@ -703,8 +735,8 @@ func (v *View) rebuildMainFlex() {
 func (v *View) applyBorderStyles() {
 	focusedFg, _, _ := v.cfg.Theme.Border.Focused.Style.Decompose()
 	normalFg, _, _ := v.cfg.Theme.Border.Normal.Style.Decompose()
-	focusedTitleFg, _, focusedTitleAttrs := v.cfg.Theme.Title.Focused.Style.Decompose()
-	normalTitleFg, _, normalTitleAttrs := v.cfg.Theme.Title.Normal.Style.Decompose()
+	focusedTitleFg, _, _ := v.cfg.Theme.Title.Focused.Style.Decompose()
+	normalTitleFg, _, _ := v.cfg.Theme.Title.Normal.Style.Decompose()
 
 	type bordered struct {
 		prim  tview.Primitive
@@ -727,16 +759,13 @@ func (v *View) applyBorderStyles() {
 		box := p.prim.(interface {
 			SetBorderColor(tcell.Color) *tview.Box
 			SetTitleColor(tcell.Color) *tview.Box
-			SetTitleAttributes(tcell.AttrMask) *tview.Box
 		})
 		if p.panel == v.activePanel {
 			box.SetBorderColor(focusedFg)
 			box.SetTitleColor(focusedTitleFg)
-			box.SetTitleAttributes(focusedTitleAttrs)
 		} else {
 			box.SetBorderColor(normalFg)
 			box.SetTitleColor(normalTitleFg)
-			box.SetTitleAttributes(normalTitleAttrs)
 		}
 	}
 }

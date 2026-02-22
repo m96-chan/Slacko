@@ -12,16 +12,17 @@ import (
 
 // Workspace represents a stored workspace entry.
 type Workspace struct {
-	ID     string `json:"id"`      // Slack team ID
-	Name   string `json:"name"`    // team/workspace name
-	BotKey string `json:"bot_key"` // keyring key for bot token
-	AppKey string `json:"app_key"` // keyring key for app token
+	ID      string `json:"id"`                 // Slack team ID
+	Name    string `json:"name"`               // team/workspace name
+	UserKey string `json:"user_key,omitempty"` // keyring key for user token
+	AppKey  string `json:"app_key"`            // keyring key for app token
+	BotKey  string `json:"bot_key,omitempty"`  // legacy keyring key (read-only fallback)
 }
 
 // WorkspaceTokens holds the resolved tokens for a workspace.
 type WorkspaceTokens struct {
-	BotToken string
-	AppToken string
+	UserToken string
+	AppToken  string
 }
 
 const workspacesFile = "workspaces.json"
@@ -58,17 +59,17 @@ func saveWorkspaces(ws []Workspace) error {
 
 // AddWorkspace stores a new workspace's tokens and adds it to the registry.
 // If a workspace with the same ID already exists, it is updated.
-func AddWorkspace(id, name, botToken, appToken string) error {
+func AddWorkspace(id, name, userToken, appToken string) error {
 	ws, err := ListWorkspaces()
 	if err != nil {
 		ws = nil
 	}
 
-	botKey := "bot_" + id
+	userKey := "user_" + id
 	appKey := "app_" + id
 
 	// Store tokens in keyring.
-	if err := gokeyring.Set(consts.Name, botKey, botToken); err != nil {
+	if err := gokeyring.Set(consts.Name, userKey, userToken); err != nil {
 		return err
 	}
 	if err := gokeyring.Set(consts.Name, appKey, appToken); err != nil {
@@ -80,7 +81,7 @@ func AddWorkspace(id, name, botToken, appToken string) error {
 	for i, w := range ws {
 		if w.ID == id {
 			ws[i].Name = name
-			ws[i].BotKey = botKey
+			ws[i].UserKey = userKey
 			ws[i].AppKey = appKey
 			found = true
 			break
@@ -88,10 +89,10 @@ func AddWorkspace(id, name, botToken, appToken string) error {
 	}
 	if !found {
 		ws = append(ws, Workspace{
-			ID:     id,
-			Name:   name,
-			BotKey: botKey,
-			AppKey: appKey,
+			ID:      id,
+			Name:    name,
+			UserKey: userKey,
+			AppKey:  appKey,
 		})
 	}
 
@@ -108,7 +109,12 @@ func RemoveWorkspace(id string) error {
 	var updated []Workspace
 	for _, w := range ws {
 		if w.ID == id {
-			_ = gokeyring.Delete(consts.Name, w.BotKey)
+			if w.UserKey != "" {
+				_ = gokeyring.Delete(consts.Name, w.UserKey)
+			}
+			if w.BotKey != "" {
+				_ = gokeyring.Delete(consts.Name, w.BotKey)
+			}
 			_ = gokeyring.Delete(consts.Name, w.AppKey)
 			continue
 		}
@@ -119,16 +125,29 @@ func RemoveWorkspace(id string) error {
 }
 
 // GetWorkspaceTokens retrieves the tokens for a workspace from the keyring.
+// It falls back to the legacy BotKey if UserKey is not set.
 func GetWorkspaceTokens(w Workspace) (WorkspaceTokens, error) {
-	bot, err := gokeyring.Get(consts.Name, w.BotKey)
+	var user string
+	var err error
+
+	if w.UserKey != "" {
+		user, err = gokeyring.Get(consts.Name, w.UserKey)
+	}
+	// Fallback to legacy BotKey if UserKey is empty or failed.
+	if w.UserKey == "" || err != nil {
+		if w.BotKey != "" {
+			user, err = gokeyring.Get(consts.Name, w.BotKey)
+		}
+	}
 	if err != nil {
 		return WorkspaceTokens{}, err
 	}
+
 	app, err := gokeyring.Get(consts.Name, w.AppKey)
 	if err != nil {
 		return WorkspaceTokens{}, err
 	}
-	return WorkspaceTokens{BotToken: bot, AppToken: app}, nil
+	return WorkspaceTokens{UserToken: user, AppToken: app}, nil
 }
 
 // MigrateDefaultWorkspace migrates the legacy single-workspace tokens
@@ -143,7 +162,7 @@ func MigrateDefaultWorkspace(teamID, teamName string) error {
 	}
 
 	// Read legacy tokens.
-	bot, err := GetBotToken()
+	user, err := GetUserToken()
 	if err != nil {
 		return err
 	}
@@ -152,5 +171,5 @@ func MigrateDefaultWorkspace(teamID, teamName string) error {
 		return err
 	}
 
-	return AddWorkspace(teamID, teamName, bot, app)
+	return AddWorkspace(teamID, teamName, user, app)
 }

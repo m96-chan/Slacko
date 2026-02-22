@@ -2,6 +2,8 @@ package slack
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -20,8 +22,12 @@ type Client struct {
 
 // New creates a Client, validates the tokens via AuthTest, and populates
 // the identity fields.
-func New(botToken, appToken string) (*Client, error) {
-	api := slack.New(botToken, slack.OptionAppLevelToken(appToken))
+func New(userToken, appToken string) (*Client, error) {
+	if !strings.HasPrefix(appToken, "xapp-") {
+		return nil, fmt.Errorf("app token must start with xapp- (got %s...)", safePrefix(appToken))
+	}
+
+	api := slack.New(userToken, slack.OptionAppLevelToken(appToken))
 
 	var resp *slack.AuthTestResponse
 	err := retryOnRateLimit(func() error {
@@ -35,7 +41,7 @@ func New(botToken, appToken string) (*Client, error) {
 
 	return &Client{
 		api:      api,
-		token:    botToken,
+		token:    userToken,
 		UserID:   resp.UserID,
 		TeamID:   resp.TeamID,
 		TeamName: resp.Team,
@@ -46,7 +52,7 @@ func New(botToken, appToken string) (*Client, error) {
 // API returns the underlying slack.Client for direct access (e.g. socketmode).
 func (c *Client) API() *slack.Client { return c.api }
 
-// Token returns the bot token for authenticated HTTP requests.
+// Token returns the user token for authenticated HTTP requests.
 func (c *Client) Token() string { return c.token }
 
 // retryOnRateLimit executes fn and, if a RateLimitedError is returned,
@@ -411,4 +417,12 @@ func (c *Client) DeleteReminder(id string) error {
 	return retryOnRateLimit(func() error {
 		return c.api.DeleteReminder(id)
 	})
+}
+
+// safePrefix returns the first 10 characters of a token for error messages.
+func safePrefix(token string) string {
+	if len(token) <= 10 {
+		return token
+	}
+	return token[:10]
 }

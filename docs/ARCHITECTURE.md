@@ -103,7 +103,7 @@ Three-phase loading in `config.Load()`:
 
 1. **Embedded defaults**: `config.toml` embedded via `go:embed`
 2. **User overrides**: `~/.config/slacko/config.toml` decoded on top
-3. **Environment variables**: `SLACKO_BOT_TOKEN`, `SLACKO_APP_TOKEN`
+3. **Environment variables**: `SLACKO_USER_TOKEN`, `SLACKO_APP_TOKEN`
 
 Theme resolution adds a 4th step:
 - Read `theme.preset` from user config

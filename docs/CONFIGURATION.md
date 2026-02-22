@@ -126,6 +126,6 @@ Each style supports:
 
 | Variable | Description |
 |---|---|
-| `SLACKO_BOT_TOKEN` | Bot User OAuth Token (`xoxb-...`) |
+| `SLACKO_USER_TOKEN` | User OAuth Token (`xoxp-...`) |
 | `SLACKO_APP_TOKEN` | App-Level Token (`xapp-...`) |
 | `EDITOR` | External editor for message composition |

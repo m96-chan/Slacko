@@ -81,11 +81,11 @@ func (a *App) Run() error {
 	// Register global keybindings.
 	a.tview.SetInputCapture(a.handleGlobalKey)
 
-	bot, botErr := keyring.GetBotToken()
+	user, userErr := keyring.GetUserToken()
 	app, appErr := keyring.GetAppToken()
 
-	if botErr == nil && appErr == nil {
-		client, err := slackclient.New(bot, app)
+	if userErr == nil && appErr == nil {
+		client, err := slackclient.New(user, app)
 		if err != nil {
 			slog.Warn("stored tokens invalid, showing login", "error", err)
 			a.showLogin()
@@ -94,8 +94,8 @@ func (a *App) Run() error {
 			a.showMain()
 		}
 	} else {
-		if botErr != nil && !errors.Is(botErr, gokeyring.ErrNotFound) {
-			slog.Warn("error reading bot token", "error", botErr)
+		if userErr != nil && !errors.Is(userErr, gokeyring.ErrNotFound) {
+			slog.Warn("error reading user token", "error", userErr)
 		}
 		if appErr != nil && !errors.Is(appErr, gokeyring.ErrNotFound) {
 			slog.Warn("error reading app token", "error", appErr)
@@ -112,6 +112,24 @@ func (a *App) shutdown() {
 		a.cancel()
 	}
 	a.tview.Stop()
+}
+
+// logout deletes stored tokens and returns to the login screen.
+// Must be called from the tview event loop (slash command or vim command handler).
+func (a *App) logout() {
+	// Stop Socket Mode.
+	if a.cancel != nil {
+		a.cancel()
+		a.cancel = nil
+	}
+
+	// Delete tokens from keyring (best-effort).
+	_ = keyring.DeleteUserToken()
+	_ = keyring.DeleteAppToken()
+
+	a.slack = nil
+	a.chatView = nil
+	a.showLogin()
 }
 
 // handleGlobalKey processes global keybindings. It returns nil to consume the
@@ -528,6 +546,10 @@ func (a *App) showMain() {
 		},
 		OnError: func(err error) {
 			slog.Error("socket mode error", "error", err)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.StatusBar.SetConnectionStatus(
+					fmt.Sprintf("%s (%s) — error: %s", a.slack.UserName, a.slack.TeamName, err.Error()))
+			})
 		},
 		OnChannelCreated: func(evt *slackevents.ChannelCreatedEvent) {
 			a.mu.Lock()
@@ -1121,6 +1143,7 @@ func (a *App) onMessageSend(channelID, text, threadTS string) {
 		_, _, err := a.slack.PostMessage(channelID, opts...)
 		if err != nil {
 			slog.Error("failed to send message", "channel", channelID, "error", err)
+			a.showCommandFeedback("Send failed: " + err.Error())
 		}
 	}()
 }
@@ -1135,6 +1158,7 @@ func (a *App) onThreadReplySend(channelID, text, threadTS string) {
 		_, _, err := a.slack.PostMessage(channelID, opts...)
 		if err != nil {
 			slog.Error("failed to send thread reply", "channel", channelID, "thread", threadTS, "error", err)
+			a.showCommandFeedback("Reply failed: " + err.Error())
 		}
 	}()
 }
@@ -1166,6 +1190,7 @@ func (a *App) onMessageEdit(channelID, timestamp, text string) {
 			slack.MsgOptionText(text, false))
 		if err != nil {
 			slog.Error("failed to edit message", "channel", channelID, "error", err)
+			a.showCommandFeedback("Edit failed: " + err.Error())
 		}
 	}()
 }
@@ -1551,6 +1576,8 @@ func (a *App) executeSlashCommand(channelID, command, args string) {
 		go a.cmdRemind(args)
 	case "reminders":
 		go a.cmdListReminders()
+	case "logout":
+		a.logout()
 	default:
 		a.showCommandFeedback("Unknown command: /" + command)
 	}
@@ -1568,6 +1595,7 @@ func (a *App) formatHelpText() string {
 }
 
 // showCommandFeedback shows a temporary status bar message.
+// Safe to call from any goroutine.
 func (a *App) showCommandFeedback(msg string) {
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.StatusBar.SetTypingIndicator(msg)
@@ -1874,6 +1902,8 @@ func (a *App) executeVimCommand(command, args string) {
 		a.tview.QueueUpdateDraw(func() {
 			a.chatView.ShowWorkspacePicker()
 		})
+	case "logout":
+		a.logout()
 	default:
 		a.showCommandFeedback("Unknown command: :" + command)
 	}
@@ -2001,7 +2031,7 @@ func (a *App) switchWorkspace(workspaceID string) {
 	}
 
 	// Create new client.
-	client, err := slackclient.New(tokens.BotToken, tokens.AppToken)
+	client, err := slackclient.New(tokens.UserToken, tokens.AppToken)
 	if err != nil {
 		slog.Error("failed to create client for workspace", "workspace", target.Name, "error", err)
 		a.showCommandFeedback("Failed to connect to " + target.Name)
@@ -2027,9 +2057,9 @@ func (a *App) switchWorkspace(workspaceID string) {
 func (a *App) fetchAllChannels() ([]slack.Channel, error) {
 	var all []slack.Channel
 	params := &slack.GetConversationsParameters{
-		Types:  []string{"public_channel", "private_channel", "mpim", "im"},
-		Limit:  200,
-		Cursor: "",
+		Types:           []string{"public_channel", "private_channel", "mpim", "im"},
+		Limit:           200,
+		ExcludeArchived: true,
 	}
 
 	for {

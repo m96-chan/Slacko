@@ -6,17 +6,17 @@ import (
 	gokeyring "github.com/zalando/go-keyring"
 )
 
-func TestSetAndGetBotToken(t *testing.T) {
+func TestSetAndGetUserToken(t *testing.T) {
 	gokeyring.MockInit()
 
-	const token = "xoxb-test-bot-token"
-	if err := SetBotToken(token); err != nil {
-		t.Fatalf("SetBotToken: %v", err)
+	const token = "xoxp-test-user-token"
+	if err := SetUserToken(token); err != nil {
+		t.Fatalf("SetUserToken: %v", err)
 	}
 
-	got, err := GetBotToken()
+	got, err := GetUserToken()
 	if err != nil {
-		t.Fatalf("GetBotToken: %v", err)
+		t.Fatalf("GetUserToken: %v", err)
 	}
 	if got != token {
 		t.Errorf("got %q, want %q", got, token)
@@ -44,15 +44,15 @@ func TestEnvVarFallback(t *testing.T) {
 	gokeyring.MockInit()
 
 	// Store a value in keyring
-	if err := SetBotToken("keyring-value"); err != nil {
-		t.Fatalf("SetBotToken: %v", err)
+	if err := SetUserToken("keyring-value"); err != nil {
+		t.Fatalf("SetUserToken: %v", err)
 	}
 
 	// Env var should take priority
-	t.Setenv("SLACKO_BOT_TOKEN", "env-value")
-	got, err := GetBotToken()
+	t.Setenv("SLACKO_USER_TOKEN", "env-value")
+	got, err := GetUserToken()
 	if err != nil {
-		t.Fatalf("GetBotToken: %v", err)
+		t.Fatalf("GetUserToken: %v", err)
 	}
 	if got != "env-value" {
 		t.Errorf("got %q, want %q", got, "env-value")
@@ -72,10 +72,34 @@ func TestEnvVarFallback(t *testing.T) {
 	}
 }
 
+func TestLegacyBotTokenEnvFallback(t *testing.T) {
+	gokeyring.MockInit()
+
+	// Legacy SLACKO_BOT_TOKEN should be picked up by GetUserToken.
+	t.Setenv("SLACKO_BOT_TOKEN", "legacy-bot-value")
+	got, err := GetUserToken()
+	if err != nil {
+		t.Fatalf("GetUserToken: %v", err)
+	}
+	if got != "legacy-bot-value" {
+		t.Errorf("got %q, want %q", got, "legacy-bot-value")
+	}
+
+	// SLACKO_USER_TOKEN takes priority over SLACKO_BOT_TOKEN.
+	t.Setenv("SLACKO_USER_TOKEN", "new-user-value")
+	got, err = GetUserToken()
+	if err != nil {
+		t.Fatalf("GetUserToken: %v", err)
+	}
+	if got != "new-user-value" {
+		t.Errorf("got %q, want %q", got, "new-user-value")
+	}
+}
+
 func TestMissingTokenReturnsErrNotFound(t *testing.T) {
 	gokeyring.MockInit()
 
-	_, err := GetBotToken()
+	_, err := GetUserToken()
 	if err != gokeyring.ErrNotFound {
 		t.Errorf("got error %v, want ErrNotFound", err)
 	}
@@ -89,13 +113,13 @@ func TestMissingTokenReturnsErrNotFound(t *testing.T) {
 func TestDeleteRemovesToken(t *testing.T) {
 	gokeyring.MockInit()
 
-	if err := SetBotToken("to-delete"); err != nil {
-		t.Fatalf("SetBotToken: %v", err)
+	if err := SetUserToken("to-delete"); err != nil {
+		t.Fatalf("SetUserToken: %v", err)
 	}
-	if err := DeleteBotToken(); err != nil {
-		t.Fatalf("DeleteBotToken: %v", err)
+	if err := DeleteUserToken(); err != nil {
+		t.Fatalf("DeleteUserToken: %v", err)
 	}
-	_, err := GetBotToken()
+	_, err := GetUserToken()
 	if err != gokeyring.ErrNotFound {
 		t.Errorf("got error %v, want ErrNotFound after delete", err)
 	}

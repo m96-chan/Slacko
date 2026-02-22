@@ -73,7 +73,7 @@ Slacko requires a Slack App with specific permissions. Follow these steps:
 
 ### 3. Configure OAuth Scopes
 
-Navigate to **"OAuth & Permissions"** and add the following **Bot Token Scopes**:
+Navigate to **"OAuth & Permissions"** and add the following **User Token Scopes**:
 
 | Scope | Purpose |
 |---|---|
@@ -123,7 +123,7 @@ Navigate to **"Event Subscriptions"** and enable events. Add the following **Bot
 
 1. Navigate to **"Install App"**
 2. Click **"Install to Workspace"** and authorize
-3. Copy the **Bot User OAuth Token** (`xoxb-...`)
+3. Copy the **User OAuth Token** (`xoxp-...`)
 
 ## Configuration
 
@@ -141,7 +141,7 @@ Set your tokens via environment variables or the config file:
 
 ```bash
 # Environment variables (recommended)
-export SLACKO_BOT_TOKEN="xoxb-your-bot-token"
+export SLACKO_USER_TOKEN="xoxp-your-user-token"
 export SLACKO_APP_TOKEN="xapp-your-app-level-token"
 ```
 

@@ -28,7 +28,7 @@ make install  # Install to $GOPATH/bin
 ### Running
 
 ```bash
-export SLACKO_BOT_TOKEN="xoxb-..."
+export SLACKO_USER_TOKEN="xoxp-..."
 export SLACKO_APP_TOKEN="xapp-..."
 ./slacko
 ```
