@@ -197,6 +197,15 @@ func (a *App) showMain() {
 		}()
 	})
 
+	// Wire search picker.
+	a.chatView.SearchPicker.SetOnSearch(func(query string) {
+		go a.searchMessages(query)
+	})
+	a.chatView.SearchPicker.SetOnSelect(func(channelID, timestamp string) {
+		a.chatView.HideSearchPicker()
+		a.onChannelSelected(channelID)
+	})
+
 	// Wire file picker: Ctrl+F from input opens picker, selection triggers upload.
 	a.chatView.MessageInput.SetOnOpenFilePicker(func() {
 		a.chatView.ShowFilePicker()
@@ -459,6 +468,55 @@ func (a *App) loadMessages(channelID string) {
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.MessagesList.SetMessages(channelID, resp.Messages, users)
 		a.updateChannelPresence(channelID, resp.Messages, users)
+	})
+}
+
+// searchMessages searches Slack messages and updates the search picker with results.
+func (a *App) searchMessages(query string) {
+	results, err := a.slack.SearchMessages(query, slack.SearchParameters{
+		Count:         20,
+		Sort:          "timestamp",
+		SortDirection: "desc",
+	})
+	if err != nil {
+		slog.Error("failed to search messages", "query", query, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.SearchPicker.SetStatus("Search failed")
+		})
+		return
+	}
+
+	a.mu.Lock()
+	users := a.users
+	a.mu.Unlock()
+
+	entries := make([]chat.SearchResultEntry, 0, len(results.Matches))
+	for _, m := range results.Matches {
+		userName := m.Username
+		if userName == "" {
+			if u, ok := users[m.User]; ok {
+				if u.Profile.DisplayName != "" {
+					userName = u.Profile.DisplayName
+				} else if u.RealName != "" {
+					userName = u.RealName
+				} else {
+					userName = u.Name
+				}
+			}
+		}
+
+		entries = append(entries, chat.SearchResultEntry{
+			ChannelID:   m.Channel.ID,
+			ChannelName: m.Channel.Name,
+			UserName:    userName,
+			Timestamp:   m.Timestamp,
+			Text:        m.Text,
+		})
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.SearchPicker.SetResults(entries)
+		a.chatView.SearchPicker.SetStatus(fmt.Sprintf("%d results", results.Total))
 	})
 }
 

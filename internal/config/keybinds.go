@@ -9,6 +9,7 @@ type Keybinds struct {
 	ToggleThread   string `toml:"toggle_thread"`
 	ToggleChannels string `toml:"toggle_channels"`
 	ChannelPicker  string `toml:"channel_picker"`
+	Search         string `toml:"search"`
 	Quit           string `toml:"quit"`
 	Help           string `toml:"help"`
 	SwitchTeam     string `toml:"switch_team"`
@@ -20,6 +21,7 @@ type Keybinds struct {
 	ThreadView     ThreadViewKeybinds     `toml:"thread_view"`
 	ChannelsPicker ChannelsPickerKeybinds `toml:"channels_picker"`
 	FilePicker     FilePickerKeybinds     `toml:"file_picker"`
+	SearchPicker   SearchPickerKeybinds   `toml:"search_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -80,6 +82,14 @@ type ChannelsPickerKeybinds struct {
 
 // FilePickerKeybinds holds keybindings for the file picker popup.
 type FilePickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
+}
+
+// SearchPickerKeybinds holds keybindings for the search picker popup.
+type SearchPickerKeybinds struct {
 	Close  string `toml:"close"`
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`

@@ -36,19 +36,22 @@ type View struct {
 	ChannelsPicker  *ChannelsPicker
 	ReactionsPicker *ReactionsPicker
 	FilePicker      *FilePicker
+	SearchPicker    *SearchPicker
 
 	outerFlex        *tview.Flex
 	contentFlex      *tview.Flex
 	mainFlex         *tview.Flex
 	pickerModal      tview.Primitive
 	reactionModal    tview.Primitive
-	fileModal        tview.Primitive
-	activePanel      Panel
-	channelsVisible  bool
-	threadVisible    bool
-	pickerVisible    bool
-	reactionVisible  bool
+	fileModal         tview.Primitive
+	searchModal       tview.Primitive
+	activePanel       Panel
+	channelsVisible   bool
+	threadVisible     bool
+	pickerVisible     bool
+	reactionVisible   bool
 	filePickerVisible bool
+	searchVisible     bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -167,6 +170,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Search picker (modal overlay).
+	v.SearchPicker = NewSearchPicker(cfg)
+	v.SearchPicker.SetOnClose(func() {
+		v.HideSearchPicker()
+	})
+
+	// Centered modal wrapper for the search picker.
+	v.searchModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.SearchPicker, 80, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Pages: main layout + modal overlays.
 	v.Pages = tview.NewPages().
 		AddPage("main", v.outerFlex, true, true)
@@ -220,8 +239,18 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	// Toggle search picker (Ctrl+S — non-rune, always works).
+	if name == v.cfg.Keybinds.Search {
+		if v.searchVisible {
+			v.HideSearchPicker()
+		} else {
+			v.ShowSearchPicker()
+		}
+		return nil
+	}
+
 	// When a modal is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible {
 		return event
 	}
 
@@ -306,6 +335,21 @@ func (v *View) ShowFilePicker() {
 func (v *View) HideFilePicker() {
 	v.filePickerVisible = false
 	v.Pages.RemovePage("filepicker")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowSearchPicker shows the search picker modal overlay.
+func (v *View) ShowSearchPicker() {
+	v.searchVisible = true
+	v.SearchPicker.Reset()
+	v.Pages.AddPage("search", v.searchModal, true, true)
+	v.app.SetFocus(v.SearchPicker.input)
+}
+
+// HideSearchPicker hides the search picker and restores focus.
+func (v *View) HideSearchPicker() {
+	v.searchVisible = false
+	v.Pages.RemovePage("search")
 	v.FocusPanel(v.activePanel)
 }
 

@@ -40,6 +40,7 @@ focus_input = "Rune[3]"
 toggle_thread = "Rune[t]"
 toggle_channels = "Ctrl+B"
 channel_picker = "Ctrl+K"
+search = "Ctrl+S"
 quit = "Ctrl+C"
 help = "Rune[?]"
 switch_team = "Ctrl+T"
@@ -90,6 +91,12 @@ down = "Ctrl+N"
 select = "Enter"
 
 [keybinds.file_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+
+[keybinds.search_picker]
 close = "Escape"
 up = "Ctrl+P"
 down = "Ctrl+N"
