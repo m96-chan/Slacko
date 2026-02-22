@@ -10,9 +10,10 @@ import (
 // StatusBar displays connection status and typing indicator at the bottom.
 type StatusBar struct {
 	*tview.TextView
-	cfg        *config.Config
-	connStatus string
-	typingText string
+	cfg          *config.Config
+	connStatus   string
+	typingText   string
+	presenceText string
 }
 
 // NewStatusBar creates a themed status bar.
@@ -45,11 +46,24 @@ func (sb *StatusBar) SetTypingIndicator(s string) {
 	sb.render()
 }
 
+// SetChannelPresence updates the online member count display.
+func (sb *StatusBar) SetChannelPresence(online, total int) {
+	if total > 0 {
+		sb.presenceText = fmt.Sprintf("%d/%d online", online, total)
+	} else {
+		sb.presenceText = ""
+	}
+	sb.render()
+}
+
 // render rebuilds the status bar text from current state.
 func (sb *StatusBar) render() {
 	text := " " + sb.connStatus
+	if sb.presenceText != "" {
+		text += "  |  " + sb.presenceText
+	}
 	if sb.typingText != "" {
-		text = fmt.Sprintf(" %s  |  %s", sb.connStatus, sb.typingText)
+		text += "  |  " + sb.typingText
 	}
 	sb.TextView.SetText(text)
 }

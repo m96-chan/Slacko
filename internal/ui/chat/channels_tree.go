@@ -339,6 +339,23 @@ func dmDisplayName(user slack.User) string {
 	return user.ID
 }
 
+// UpdateUserPresence updates the presence icon on DM nodes for the given user.
+func (ct *ChannelsTree) UpdateUserPresence(userID, presence string) {
+	section := ct.sections[ChannelTypeDM]
+	for _, node := range section.GetChildren() {
+		ref, ok := node.GetReference().(*nodeRef)
+		if !ok || ref.UserID != userID {
+			continue
+		}
+		// Rebuild display text: replace the presence icon prefix.
+		text := node.GetText()
+		if idx := strings.Index(text, " "); idx >= 0 {
+			node.SetText(fmt.Sprintf("%s%s", presenceIcon(presence), text[idx:]))
+		}
+		return
+	}
+}
+
 // channelSortKey returns a string used for sorting channels.
 func channelSortKey(ch slack.Channel, users map[string]slack.User, selfUserID string) string {
 	if ch.IsIM {

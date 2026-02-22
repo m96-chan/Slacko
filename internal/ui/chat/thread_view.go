@@ -175,6 +175,12 @@ func (tv *ThreadView) Clear() {
 	tv.replyInput.SetText("", false)
 }
 
+// UpdateUsers updates the users map and re-renders to reflect status changes.
+func (tv *ThreadView) UpdateUsers(users map[string]slack.User) {
+	tv.users = users
+	tv.render()
+}
+
 // render rebuilds the full text content from thread messages.
 func (tv *ThreadView) render() {
 	var b strings.Builder
@@ -185,15 +191,32 @@ func (tv *ThreadView) render() {
 
 		// Author line.
 		userName := resolveUserName(msg.User, msg.Username, msg.BotID, tv.users)
+		// Build presence prefix and status suffix.
+		presencePrefix := ""
+		if tv.cfg.Presence.Enabled {
+			if u, ok := tv.users[msg.User]; ok {
+				presencePrefix = presenceIcon(u.Presence) + " "
+			}
+		}
+		statusSuffix := ""
+		if u, ok := tv.users[msg.User]; ok && u.Profile.StatusEmoji != "" {
+			emoji := strings.TrimPrefix(u.Profile.StatusEmoji, ":")
+			emoji = strings.TrimSuffix(emoji, ":")
+			if emoji != "" {
+				statusSuffix = " " + markdown.LookupEmoji(emoji)
+			}
+		}
 		if i == 0 {
-			fmt.Fprintf(&b, "[green::b]%s[-::-] [gray](parent)[-]\n", tview.Escape(userName))
+			fmt.Fprintf(&b, "%s[green::b]%s[-::-]%s [gray](parent)[-]\n",
+				presencePrefix, tview.Escape(userName), statusSuffix)
 		} else {
 			t := parseSlackTimestamp(msg.Timestamp)
 			if tv.cfg.Timestamps.Enabled {
 				timeStr := t.Format(tv.cfg.Timestamps.Format)
 				fmt.Fprintf(&b, "[gray]%s[-] ", timeStr)
 			}
-			fmt.Fprintf(&b, "[green::b]%s[-::-]\n", tview.Escape(userName))
+			fmt.Fprintf(&b, "%s[green::b]%s[-::-]%s\n",
+				presencePrefix, tview.Escape(userName), statusSuffix)
 		}
 
 		// Message text.

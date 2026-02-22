@@ -262,6 +262,12 @@ func (ml *MessagesList) RemoveReaction(channelID, timestamp, reaction, userID st
 	}
 }
 
+// UpdateUsers updates the users map and re-renders to reflect status changes.
+func (ml *MessagesList) UpdateUsers(users map[string]slack.User) {
+	ml.users = users
+	ml.render()
+}
+
 // render rebuilds the full text content from messages.
 func (ml *MessagesList) render() {
 	var b strings.Builder
@@ -305,7 +311,24 @@ func (ml *MessagesList) render() {
 				fmt.Fprintf(&b, "[gray]%s[-] ", timeStr)
 			}
 			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users)
-			fmt.Fprintf(&b, "[green::b]%s[-::-]\n", tview.Escape(userName))
+			// Presence icon before author name.
+			if ml.cfg.Presence.Enabled {
+				if u, ok := ml.users[msg.User]; ok {
+					fmt.Fprintf(&b, "%s ", presenceIcon(u.Presence))
+				}
+			}
+			fmt.Fprintf(&b, "[green::b]%s[-::-]", tview.Escape(userName))
+			// Status emoji after author name.
+			if u, ok := ml.users[msg.User]; ok && u.Profile.StatusEmoji != "" {
+				emoji := u.Profile.StatusEmoji
+				// Strip colons if present (e.g. ":calendar:" → "calendar").
+				emoji = strings.TrimPrefix(emoji, ":")
+				emoji = strings.TrimSuffix(emoji, ":")
+				if emoji != "" {
+					fmt.Fprintf(&b, " %s", markdown.LookupEmoji(emoji))
+				}
+			}
+			b.WriteString("\n")
 		}
 
 		// System message subtypes.

@@ -337,6 +337,28 @@ func (a *App) showMain() {
 					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction, evt.User)
 			})
 		},
+		OnUserStatusChanged: func(evt *slackevents.UserStatusChangedEvent) {
+			a.mu.Lock()
+			if u, ok := a.users[evt.User.ID]; ok {
+				u.Profile.StatusText = evt.User.Profile.StatusText
+				u.Profile.StatusEmoji = evt.User.Profile.StatusEmoji
+				u.RealName = evt.User.RealName
+				if evt.User.Profile.DisplayName != "" {
+					u.Profile.DisplayName = evt.User.Profile.DisplayName
+				}
+				a.users[evt.User.ID] = u
+			}
+			users := a.users
+			a.mu.Unlock()
+
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ChannelsTree.UpdateUserPresence(evt.User.ID, "")
+				a.chatView.MessagesList.UpdateUsers(users)
+				if a.chatView.ThreadView.IsOpen() {
+					a.chatView.ThreadView.UpdateUsers(users)
+				}
+			})
+		},
 	}
 
 	go func() {
@@ -436,7 +458,30 @@ func (a *App) loadMessages(channelID string) {
 
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.MessagesList.SetMessages(channelID, resp.Messages, users)
+		a.updateChannelPresence(channelID, resp.Messages, users)
 	})
+}
+
+// updateChannelPresence counts online users from the given messages and updates the status bar.
+func (a *App) updateChannelPresence(channelID string, messages []slack.Message, users map[string]slack.User) {
+	if !a.Config.Presence.Enabled {
+		a.chatView.StatusBar.SetChannelPresence(0, 0)
+		return
+	}
+
+	seen := make(map[string]bool)
+	var online, total int
+	for _, msg := range messages {
+		if msg.User == "" || seen[msg.User] {
+			continue
+		}
+		seen[msg.User] = true
+		total++
+		if u, ok := users[msg.User]; ok && u.Presence == "active" {
+			online++
+		}
+	}
+	a.chatView.StatusBar.SetChannelPresence(online, total)
 }
 
 // onMessageSend handles sending a new message or thread reply.
