@@ -2,7 +2,6 @@ package oauth
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -56,109 +55,157 @@ func TestBuildAuthURL(t *testing.T) {
 	}
 }
 
-func TestCallbackReceivesCode(t *testing.T) {
-	// This test verifies the callback HTTP handler correctly receives and
-	// validates the authorization code. We test via Run() with a mock Slack
-	// token exchange endpoint.
+func TestBuildProxyAuthorizeURL(t *testing.T) {
+	authURL := buildProxyAuthorizeURL("https://proxy.example.com", 12345, "csrf-abc")
 
-	// Mock Slack OAuth endpoint.
-	mockSlack := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Return a valid OAuth v2 response.
-		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, `{
-			"ok": true,
-			"authed_user": {
-				"id": "U12345",
-				"access_token": "xoxp-test-token"
-			},
-			"team": {
-				"id": "T12345",
-				"name": "Test Team"
-			}
-		}`)
-	}))
-	defer mockSlack.Close()
-
-	// Since we can't easily mock slack.GetOAuthV2Response (it calls the real
-	// Slack API), we instead test the callback handler in isolation.
-	state := "test-state-123"
-	type callbackResult struct {
-		code string
-		err  error
-	}
-	ch := make(chan callbackResult, 1)
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		if errMsg := r.URL.Query().Get("error"); errMsg != "" {
-			ch <- callbackResult{err: nil}
-			return
-		}
-		if r.URL.Query().Get("state") != state {
-			ch <- callbackResult{err: nil}
-			http.Error(w, "state mismatch", http.StatusBadRequest)
-			return
-		}
-		code := r.URL.Query().Get("code")
-		ch <- callbackResult{code: code}
-		w.WriteHeader(http.StatusOK)
-	})
-
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	// Simulate callback with correct state and code.
-	resp, err := http.Get(server.URL + "/callback?code=test-auth-code&state=" + state)
+	u, err := url.Parse(authURL)
 	if err != nil {
-		t.Fatalf("callback request failed: %v", err)
+		t.Fatalf("failed to parse proxy auth URL: %v", err)
 	}
-	resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	if u.Path != "/authorize" {
+		t.Errorf("path = %q, want /authorize", u.Path)
+	}
+	if u.Query().Get("port") != "12345" {
+		t.Errorf("port = %q, want 12345", u.Query().Get("port"))
+	}
+	if u.Query().Get("state") != "csrf-abc" {
+		t.Errorf("state = %q, want csrf-abc", u.Query().Get("state"))
+	}
+}
+
+func TestBuildProxyAuthorizeURLTrailingSlash(t *testing.T) {
+	authURL := buildProxyAuthorizeURL("https://proxy.example.com/", 8080, "s")
+	if !strings.Contains(authURL, "proxy.example.com/authorize?") {
+		t.Errorf("trailing slash not trimmed: %s", authURL)
+	}
+}
+
+func TestHandleProxyDone(t *testing.T) {
+	ch := make(chan flowResult, 1)
+	handler := handleProxyDone(ch, "expected-state")
+
+	// Build a POST request with form data.
+	form := url.Values{
+		"token":     {"xoxp-test-token"},
+		"user_id":   {"U12345"},
+		"team_id":   {"T12345"},
+		"team_name": {"Test Team"},
+		"state":     {"expected-state"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/done", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
 	}
 
 	select {
 	case res := <-ch:
-		if res.code != "test-auth-code" {
-			t.Errorf("code = %q, want %q", res.code, "test-auth-code")
+		if res.err != nil {
+			t.Fatalf("unexpected error: %v", res.err)
+		}
+		if res.result.UserToken != "xoxp-test-token" {
+			t.Errorf("UserToken = %q, want %q", res.result.UserToken, "xoxp-test-token")
+		}
+		if res.result.TeamID != "T12345" {
+			t.Errorf("TeamID = %q", res.result.TeamID)
+		}
+		if res.result.TeamName != "Test Team" {
+			t.Errorf("TeamName = %q", res.result.TeamName)
+		}
+		if res.result.UserID != "U12345" {
+			t.Errorf("UserID = %q", res.result.UserID)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for callback result")
+		t.Fatal("timeout waiting for result")
 	}
 }
 
-func TestCallbackStateMismatch(t *testing.T) {
-	state := "correct-state"
-	type callbackResult struct {
-		code string
-		err  error
-	}
-	ch := make(chan callbackResult, 1)
+func TestHandleProxyDoneStateMismatch(t *testing.T) {
+	ch := make(chan flowResult, 1)
+	handler := handleProxyDone(ch, "correct-state")
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("state") != state {
-			ch <- callbackResult{err: nil}
-			http.Error(w, "state mismatch", http.StatusBadRequest)
-			return
+	form := url.Values{
+		"token": {"xoxp-token"},
+		"state": {"wrong-state"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/done", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for state mismatch, got %d", w.Code)
+	}
+
+	select {
+	case res := <-ch:
+		if res.err == nil || !strings.Contains(res.err.Error(), "state mismatch") {
+			t.Errorf("expected state mismatch error, got: %v", res.err)
 		}
-		ch <- callbackResult{code: r.URL.Query().Get("code")}
-		w.WriteHeader(http.StatusOK)
-	})
-
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	// Send callback with wrong state.
-	resp, err := http.Get(server.URL + "/callback?code=test-code&state=wrong-state")
-	if err != nil {
-		t.Fatalf("callback request failed: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timeout")
 	}
-	resp.Body.Close()
+}
 
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected 400 for state mismatch, got %d", resp.StatusCode)
+func TestHandleProxyDoneMethodNotAllowed(t *testing.T) {
+	ch := make(chan flowResult, 1)
+	handler := handleProxyDone(ch, "state")
+
+	req := httptest.NewRequest(http.MethodGet, "/done", nil)
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestHandleProxyDoneMissingToken(t *testing.T) {
+	ch := make(chan flowResult, 1)
+	handler := handleProxyDone(ch, "state")
+
+	form := url.Values{
+		"state": {"state"},
+		// no token
+	}
+	req := httptest.NewRequest(http.MethodPost, "/done", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+
+	select {
+	case res := <-ch:
+		if res.err == nil || !strings.Contains(res.err.Error(), "no token") {
+			t.Errorf("expected 'no token' error, got: %v", res.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout")
+	}
+}
+
+func TestDirectCallbackStateMismatch(t *testing.T) {
+	ch := make(chan flowResult, 1)
+	handler := handleDirectCallback(ch, "correct-state", "id", "secret", "http://localhost/callback")
+
+	req := httptest.NewRequest(http.MethodGet, "/callback?code=abc&state=wrong-state", nil)
+	w := httptest.NewRecorder()
+
+	handler(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }
 
@@ -166,12 +213,29 @@ func TestRunTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// openBrowser does nothing — no callback will arrive, so it should time out.
-	_, err := Run(ctx, "test-id", "test-secret", "xapp-test", func(string) error { return nil })
+	_, err := Run(ctx, Params{
+		ClientID:     "test-id",
+		ClientSecret: "test-secret",
+		OpenBrowser:  func(string) error { return nil },
+	})
 	if err == nil {
 		t.Fatal("expected timeout error")
 	}
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("expected timeout error, got: %v", err)
+	}
+}
+
+func TestRunRequiresSecretOrProxy(t *testing.T) {
+	ctx := context.Background()
+	_, err := Run(ctx, Params{
+		ClientID:    "test-id",
+		OpenBrowser: func(string) error { return nil },
+	})
+	if err == nil {
+		t.Fatal("expected error when neither secret nor proxy is set")
+	}
+	if !strings.Contains(err.Error(), "client_secret") {
+		t.Errorf("expected error about client_secret/proxy_url, got: %v", err)
 	}
 }

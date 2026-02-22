@@ -15,10 +15,13 @@ import (
 var defaultConfig []byte
 
 // OAuthConfig holds OAuth credentials for browser-based login.
+// ProxyURL is used for public distribution (Cloudflare Worker holds the secret).
+// ClientSecret is used for self-hosted setups (direct exchange with Slack).
 type OAuthConfig struct {
 	ClientID     string `toml:"client_id"`
 	ClientSecret string `toml:"client_secret"`
 	AppToken     string `toml:"app_token"`
+	ProxyURL     string `toml:"proxy_url"`
 }
 
 // Config holds the application configuration.
@@ -173,6 +176,9 @@ func applyDefaults(cfg *Config) {
 	}
 	if v := os.Getenv("SLACKO_APP_TOKEN"); v != "" {
 		cfg.OAuth.AppToken = v
+	}
+	if v := os.Getenv("SLACKO_PROXY_URL"); v != "" {
+		cfg.OAuth.ProxyURL = v
 	}
 }
 

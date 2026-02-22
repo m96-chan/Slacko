@@ -11,6 +11,7 @@ ascii_icons = false
 client_id = ""
 client_secret = ""
 app_token = ""
+proxy_url = ""
 
 [markdown]
 enabled = true

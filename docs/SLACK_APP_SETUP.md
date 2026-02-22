@@ -100,15 +100,16 @@ You have several options for providing tokens:
 
 If a workspace admin distributes Slacko with OAuth credentials, each user can log in via browser without manually copying tokens.
 
-#### Admin Setup
+There are two modes:
+
+#### A-1. Self-hosted (with client_secret)
+
+For private/internal use where you control the config:
 
 1. In your Slack App settings, navigate to **"OAuth & Permissions"**
 2. Under **"Redirect URLs"**, add: `http://localhost`
 3. Note the **Client ID** and **Client Secret** from **"Basic Information"**
 
-Then configure Slacko via `config.toml` or environment variables:
-
-**config.toml:**
 ```toml
 [oauth]
 client_id = "your-client-id"
@@ -116,11 +117,31 @@ client_secret = "your-client-secret"
 app_token = "xapp-your-app-token"
 ```
 
-**Environment variables:**
+#### A-2. Public distribution (with proxy)
+
+For OSS / public distribution, the `client_secret` is kept server-side in a
+Cloudflare Worker. The Worker also handles the OAuth callback from Slack,
+so the Redirect URL is set to the Worker (not localhost).
+
+1. In your Slack App settings, navigate to **"OAuth & Permissions"**
+2. Under **"Redirect URLs"**, add: `https://slacko-oauth-proxy.<account>.workers.dev/callback`
+3. Deploy the Worker (see [Deploying the OAuth Proxy](#deploying-the-oauth-proxy))
+
+Users only need `client_id`, `app_token`, and the proxy URL:
+
+```toml
+[oauth]
+client_id = "your-client-id"
+app_token = "xapp-your-app-token"
+proxy_url = "https://slacko-oauth-proxy.your-account.workers.dev"
+```
+
+**Environment variables** (both modes):
 ```bash
 export SLACKO_CLIENT_ID="your-client-id"
-export SLACKO_CLIENT_SECRET="your-client-secret"
+export SLACKO_CLIENT_SECRET="your-client-secret"  # self-hosted only
 export SLACKO_APP_TOKEN="xapp-your-app-token"
+export SLACKO_PROXY_URL="https://..."              # public distribution only
 ```
 
 #### User Experience
@@ -149,6 +170,44 @@ Add to your `~/.bashrc` or `~/.zshrc`:
 export SLACKO_USER_TOKEN="xoxp-..."
 export SLACKO_APP_TOKEN="xapp-..."
 ```
+
+## Deploying the OAuth Proxy
+
+For public distribution, you need a thin proxy to hold the `client_secret`
+server-side. Slacko includes a Cloudflare Worker in `workers/oauth-proxy/`.
+
+### Setup
+
+1. Install [Wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/):
+   ```bash
+   npm install -g wrangler
+   ```
+
+2. Authenticate with Cloudflare:
+   ```bash
+   wrangler login
+   ```
+
+3. Set the secrets:
+   ```bash
+   cd workers/oauth-proxy
+   wrangler secret put SLACK_CLIENT_ID
+   wrangler secret put SLACK_CLIENT_SECRET
+   ```
+
+4. Deploy:
+   ```bash
+   wrangler deploy
+   ```
+
+5. Note the deployed URL (e.g., `https://slacko-oauth-proxy.<account>.workers.dev`)
+   and set it as `proxy_url` in the Slacko config or `SLACKO_PROXY_URL` env var.
+
+### How It Works
+
+The CLI sends only the authorization `code` and `redirect_uri` to the proxy.
+The proxy adds the `client_secret` and calls Slack's `oauth.v2.access` endpoint,
+then returns the user token. The `client_secret` never leaves the server.
 
 ## Troubleshooting
 

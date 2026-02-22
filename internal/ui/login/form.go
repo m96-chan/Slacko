@@ -82,10 +82,11 @@ func (f *Form) submitOAuth() {
 	f.app.Suspend(func() {
 		result, oauthErr = oauth.Run(
 			context.Background(),
-			cfg.ClientID,
-			cfg.ClientSecret,
-			cfg.AppToken,
-			nil, // use default browser opener
+			oauth.Params{
+				ClientID:     cfg.ClientID,
+				ClientSecret: cfg.ClientSecret,
+				ProxyURL:     cfg.ProxyURL,
+			},
 		)
 	})
 

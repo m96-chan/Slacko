@@ -35,15 +35,33 @@ type Result struct {
 	UserID    string
 }
 
-// Run executes the local OAuth flow:
-//  1. Listens on a random localhost port
-//  2. Opens the browser to Slack's authorize endpoint
-//  3. Receives the callback with the authorization code
-//  4. Exchanges the code for an access token
+// Params configures the OAuth flow.
+type Params struct {
+	ClientID     string
+	ClientSecret string // direct exchange (self-hosted mode)
+	ProxyURL     string // Cloudflare Worker URL (public distribution mode)
+	OpenBrowser  func(string) error
+}
+
+// flowResult is sent through the channel from callback handlers to Run().
+type flowResult struct {
+	result *Result
+	err    error
+}
+
+// Run executes the local OAuth flow. There are two modes:
 //
-// openBrowser is called with the authorization URL. If nil, the default
-// system browser opener is used.
-func Run(ctx context.Context, clientID, clientSecret, appToken string, openBrowser func(string) error) (*Result, error) {
+// Proxy mode (ProxyURL set): Browser → Worker/authorize → Slack → Worker/callback
+// (exchanges token) → form POST to localhost/done.
+//
+// Direct mode (ClientSecret set): Browser → Slack → localhost/callback → direct
+// token exchange with Slack API.
+func Run(ctx context.Context, p Params) (*Result, error) {
+	if p.ClientSecret == "" && p.ProxyURL == "" {
+		return nil, fmt.Errorf("either client_secret (self-hosted) or proxy_url (public) must be configured")
+	}
+
+	openBrowser := p.OpenBrowser
 	if openBrowser == nil {
 		openBrowser = defaultOpenBrowser
 	}
@@ -56,46 +74,21 @@ func Run(ctx context.Context, clientID, clientSecret, appToken string, openBrows
 	defer ln.Close()
 
 	port := ln.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
 
 	state, err := generateState()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate state: %w", err)
 	}
 
-	authURL := buildAuthURL(clientID, redirectURI, state)
-
-	// Channel to receive the result from the callback handler.
-	type callbackResult struct {
-		code string
-		err  error
-	}
-	ch := make(chan callbackResult, 1)
-
+	ch := make(chan flowResult, 1)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		if errMsg := r.URL.Query().Get("error"); errMsg != "" {
-			ch <- callbackResult{err: fmt.Errorf("slack denied authorization: %s", errMsg)}
-			fmt.Fprintf(w, "<html><body><h2>Authorization denied.</h2><p>You can close this window.</p></body></html>")
-			return
-		}
 
-		if r.URL.Query().Get("state") != state {
-			ch <- callbackResult{err: fmt.Errorf("state mismatch (possible CSRF)")}
-			http.Error(w, "state mismatch", http.StatusBadRequest)
-			return
-		}
-
-		code := r.URL.Query().Get("code")
-		if code == "" {
-			ch <- callbackResult{err: fmt.Errorf("no code in callback")}
-			http.Error(w, "missing code", http.StatusBadRequest)
-			return
-		}
-
-		ch <- callbackResult{code: code}
-		fmt.Fprintf(w, "<html><body><h2>Authorization successful!</h2><p>You can close this window and return to Slacko.</p></body></html>")
-	})
+	if p.ProxyURL != "" {
+		mux.HandleFunc("/done", handleProxyDone(ch, state))
+	} else {
+		redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
+		mux.HandleFunc("/callback", handleDirectCallback(ch, state, p.ClientID, p.ClientSecret, redirectURI))
+	}
 
 	server := &http.Server{Handler: mux}
 	go func() {
@@ -107,23 +100,100 @@ func Run(ctx context.Context, clientID, clientSecret, appToken string, openBrows
 		_ = server.Shutdown(shutdownCtx)
 	}()
 
-	// Open browser (best-effort; print URL on failure).
+	// Build the URL to open.
+	var authURL string
+	if p.ProxyURL != "" {
+		authURL = buildProxyAuthorizeURL(p.ProxyURL, port, state)
+	} else {
+		redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
+		authURL = buildAuthURL(p.ClientID, redirectURI, state)
+	}
+
 	if err := openBrowser(authURL); err != nil {
 		fmt.Printf("Open this URL in your browser:\n%s\n", authURL)
 	}
 
-	// Wait for callback or timeout.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
 	select {
 	case res := <-ch:
-		if res.err != nil {
-			return nil, res.err
-		}
-		return exchangeCode(clientID, clientSecret, res.code, redirectURI)
+		return res.result, res.err
 	case <-timeoutCtx.Done():
 		return nil, fmt.Errorf("OAuth timed out waiting for authorization")
+	}
+}
+
+// handleProxyDone returns an HTTP handler for POST /done, which receives
+// the token and identity from the Worker's auto-submitted form.
+func handleProxyDone(ch chan<- flowResult, expectedState string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			ch <- flowResult{err: fmt.Errorf("failed to parse form: %w", err)}
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
+		if r.FormValue("state") != expectedState {
+			ch <- flowResult{err: fmt.Errorf("state mismatch (possible CSRF)")}
+			http.Error(w, "state mismatch", http.StatusBadRequest)
+			return
+		}
+
+		token := r.FormValue("token")
+		if token == "" {
+			ch <- flowResult{err: fmt.Errorf("no token in callback")}
+			http.Error(w, "missing token", http.StatusBadRequest)
+			return
+		}
+
+		ch <- flowResult{result: &Result{
+			UserToken: token,
+			TeamID:    r.FormValue("team_id"),
+			TeamName:  r.FormValue("team_name"),
+			UserID:    r.FormValue("user_id"),
+		}}
+
+		fmt.Fprintf(w, "<html><body><h2>Authorization successful!</h2><p>You can close this window and return to Slacko.</p></body></html>")
+	}
+}
+
+// handleDirectCallback returns an HTTP handler for GET /callback (direct mode),
+// which receives the code from Slack and exchanges it locally.
+func handleDirectCallback(ch chan<- flowResult, expectedState, clientID, clientSecret, redirectURI string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if errMsg := r.URL.Query().Get("error"); errMsg != "" {
+			ch <- flowResult{err: fmt.Errorf("slack denied authorization: %s", errMsg)}
+			fmt.Fprintf(w, "<html><body><h2>Authorization denied.</h2><p>You can close this window.</p></body></html>")
+			return
+		}
+
+		if r.URL.Query().Get("state") != expectedState {
+			ch <- flowResult{err: fmt.Errorf("state mismatch (possible CSRF)")}
+			http.Error(w, "state mismatch", http.StatusBadRequest)
+			return
+		}
+
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			ch <- flowResult{err: fmt.Errorf("no code in callback")}
+			http.Error(w, "missing code", http.StatusBadRequest)
+			return
+		}
+
+		result, err := exchangeCodeDirect(clientID, clientSecret, code, redirectURI)
+		ch <- flowResult{result: result, err: err}
+
+		if err != nil {
+			fmt.Fprintf(w, "<html><body><h2>Authorization failed.</h2><p>%s</p></body></html>", err.Error())
+		} else {
+			fmt.Fprintf(w, "<html><body><h2>Authorization successful!</h2><p>You can close this window and return to Slacko.</p></body></html>")
+		}
 	}
 }
 
@@ -136,7 +206,7 @@ func generateState() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// buildAuthURL constructs the Slack OAuth v2 authorization URL.
+// buildAuthURL constructs the Slack OAuth v2 authorization URL (direct mode).
 func buildAuthURL(clientID, redirectURI, state string) string {
 	params := url.Values{
 		"client_id":    {clientID},
@@ -147,9 +217,19 @@ func buildAuthURL(clientID, redirectURI, state string) string {
 	return "https://slack.com/oauth/v2/authorize?" + params.Encode()
 }
 
-// exchangeCode exchanges the authorization code for an access token using
-// the slack-go library.
-func exchangeCode(clientID, clientSecret, code, redirectURI string) (*Result, error) {
+// buildProxyAuthorizeURL constructs the Worker /authorize URL (proxy mode).
+func buildProxyAuthorizeURL(proxyURL string, port int, state string) string {
+	base := strings.TrimRight(proxyURL, "/")
+	params := url.Values{
+		"port":  {fmt.Sprintf("%d", port)},
+		"state": {state},
+	}
+	return base + "/authorize?" + params.Encode()
+}
+
+// exchangeCodeDirect exchanges the authorization code for an access token
+// directly with the Slack API (self-hosted mode with client_secret).
+func exchangeCodeDirect(clientID, clientSecret, code, redirectURI string) (*Result, error) {
 	resp, err := slack.GetOAuthV2Response(http.DefaultClient, clientID, clientSecret, code, redirectURI)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange failed: %w", err)
@@ -169,19 +249,18 @@ func exchangeCode(clientID, clientSecret, code, redirectURI string) (*Result, er
 }
 
 // defaultOpenBrowser opens a URL in the system's default browser.
-func defaultOpenBrowser(url string) error {
+func defaultOpenBrowser(rawURL string) error {
 	var args []string
 	switch runtime.GOOS {
 	case "darwin":
-		args = []string{"open", url}
+		args = []string{"open", rawURL}
 	case "windows":
-		args = []string{"rundll32", "url.dll,FileProtocolHandler", url}
+		args = []string{"rundll32", "url.dll,FileProtocolHandler", rawURL}
 	default:
-		args = []string{"xdg-open", url}
+		args = []string{"xdg-open", rawURL}
 	}
 
-	// Validate the URL scheme to prevent command injection.
-	if !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "http://") {
+	if !strings.HasPrefix(rawURL, "https://") && !strings.HasPrefix(rawURL, "http://") {
 		return fmt.Errorf("refusing to open non-HTTP URL")
 	}
 
