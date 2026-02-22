@@ -42,6 +42,7 @@ type App struct {
 	users          map[string]slack.User
 	dmSet          map[string]bool   // set of DM channel IDs
 	lastRead       map[string]string // channelID → last-read timestamp
+	pinnedMsgs     map[string]map[string]bool // channelID → set of pinned timestamps
 	currentChannel string
 	mu             sync.Mutex
 }
@@ -49,12 +50,13 @@ type App struct {
 // New creates a new App with the given config.
 func New(cfg *config.Config) *App {
 	return &App{
-		Config:   cfg,
-		tview:    tview.NewApplication(),
-		users:    make(map[string]slack.User),
-		dmSet:    make(map[string]bool),
-		lastRead: make(map[string]string),
-		notifier: notifications.New(),
+		Config:     cfg,
+		tview:      tview.NewApplication(),
+		users:      make(map[string]slack.User),
+		dmSet:      make(map[string]bool),
+		lastRead:   make(map[string]string),
+		pinnedMsgs: make(map[string]map[string]bool),
+		notifier:   notifications.New(),
 	}
 }
 
@@ -230,6 +232,54 @@ func (a *App) showMain() {
 		go a.openFile(file)
 	})
 
+	// Wire pins picker selection: jump to the channel/message.
+	a.chatView.PinsPicker.SetOnSelect(func(channelID, timestamp string) {
+		a.chatView.HidePinsPicker()
+	})
+
+	// Wire pin/unpin toggle from messages list.
+	a.chatView.MessagesList.SetOnPinRequest(func(channelID, timestamp string, pin bool) {
+		go func() {
+			ref := slack.NewRefToMessage(channelID, timestamp)
+			if pin {
+				if err := a.slack.AddPin(channelID, ref); err != nil {
+					slog.Error("failed to pin message", "channel", channelID, "error", err)
+					return
+				}
+			} else {
+				if err := a.slack.RemovePin(channelID, ref); err != nil {
+					slog.Error("failed to unpin message", "channel", channelID, "error", err)
+					return
+				}
+			}
+			a.mu.Lock()
+			if a.pinnedMsgs[channelID] == nil {
+				a.pinnedMsgs[channelID] = make(map[string]bool)
+			}
+			if pin {
+				a.pinnedMsgs[channelID][timestamp] = true
+			} else {
+				delete(a.pinnedMsgs[channelID], timestamp)
+			}
+			a.mu.Unlock()
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.SetPinned(timestamp, pin)
+			})
+		}()
+	})
+
+	// Wire pinned messages popup: fetch pins when user opens the popup.
+	a.chatView.SetOnPinnedMessages(func() {
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch == "" {
+			return
+		}
+		a.chatView.PinsPicker.SetStatus("Loading...")
+		go a.loadPinnedMessages(ch)
+	})
+
 	// Wire mark-as-read keybinds.
 	a.chatView.SetOnMarkRead(func() {
 		a.mu.Lock()
@@ -387,6 +437,49 @@ func (a *App) showMain() {
 					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction, evt.User)
 			})
 		},
+		OnPinAdded: func(evt *slackevents.PinAddedEvent) {
+			channel := evt.Channel
+			ts := ""
+			if evt.Item.Message != nil {
+				ts = evt.Item.Message.Timestamp
+			}
+			if ts == "" {
+				return
+			}
+			a.mu.Lock()
+			if a.pinnedMsgs[channel] == nil {
+				a.pinnedMsgs[channel] = make(map[string]bool)
+			}
+			a.pinnedMsgs[channel][ts] = true
+			isCurrent := channel == a.currentChannel
+			a.mu.Unlock()
+			if isCurrent {
+				a.tview.QueueUpdateDraw(func() {
+					a.chatView.MessagesList.SetPinned(ts, true)
+				})
+			}
+		},
+		OnPinRemoved: func(evt *slackevents.PinRemovedEvent) {
+			channel := evt.Channel
+			ts := ""
+			if evt.Item.Message != nil {
+				ts = evt.Item.Message.Timestamp
+			}
+			if ts == "" {
+				return
+			}
+			a.mu.Lock()
+			if a.pinnedMsgs[channel] != nil {
+				delete(a.pinnedMsgs[channel], ts)
+			}
+			isCurrent := channel == a.currentChannel
+			a.mu.Unlock()
+			if isCurrent {
+				a.tview.QueueUpdateDraw(func() {
+					a.chatView.MessagesList.SetPinned(ts, false)
+				})
+			}
+		},
 		OnUserStatusChanged: func(evt *slackevents.UserStatusChangedEvent) {
 			a.mu.Lock()
 			if u, ok := a.users[evt.User.ID]; ok {
@@ -533,6 +626,93 @@ func (a *App) loadMessages(channelID string) {
 		latestTS := resp.Messages[0].Timestamp // newest-first from API
 		a.markChannelRead(channelID, latestTS)
 	}
+
+	// Fetch pinned messages for pin indicators.
+	go a.fetchChannelPins(channelID)
+}
+
+// loadPinnedMessages fetches pinned messages for a channel and updates the UI.
+func (a *App) loadPinnedMessages(channelID string) {
+	items, err := a.slack.ListPins(channelID)
+	if err != nil {
+		slog.Error("failed to fetch pins", "channel", channelID, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.PinsPicker.SetStatus("Failed to load pins")
+		})
+		return
+	}
+
+	a.mu.Lock()
+	users := a.users
+	a.mu.Unlock()
+
+	pinnedSet := make(map[string]bool)
+	entries := make([]chat.PinnedEntry, 0, len(items))
+	for _, item := range items {
+		if item.Message == nil {
+			continue
+		}
+		ts := item.Message.Timestamp
+		pinnedSet[ts] = true
+		userName := ""
+		if u, ok := users[item.Message.User]; ok {
+			if u.Profile.DisplayName != "" {
+				userName = u.Profile.DisplayName
+			} else if u.RealName != "" {
+				userName = u.RealName
+			} else {
+				userName = u.Name
+			}
+		}
+		if userName == "" {
+			userName = item.Message.User
+		}
+		entries = append(entries, chat.PinnedEntry{
+			ChannelID: channelID,
+			Timestamp: ts,
+			UserName:  userName,
+			Text:      item.Message.Text,
+		})
+	}
+
+	a.mu.Lock()
+	a.pinnedMsgs[channelID] = pinnedSet
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.PinsPicker.SetPins(entries)
+		if len(entries) == 1 {
+			a.chatView.PinsPicker.SetStatus("1 pinned message")
+		} else {
+			a.chatView.PinsPicker.SetStatus(fmt.Sprintf("%d pinned messages", len(entries)))
+		}
+	})
+}
+
+// fetchChannelPins fetches pinned message timestamps for a channel and updates the messages list.
+func (a *App) fetchChannelPins(channelID string) {
+	items, err := a.slack.ListPins(channelID)
+	if err != nil {
+		slog.Error("failed to fetch pins", "channel", channelID, "error", err)
+		return
+	}
+
+	pinnedSet := make(map[string]bool, len(items))
+	timestamps := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.Message != nil {
+			pinnedSet[item.Message.Timestamp] = true
+			timestamps = append(timestamps, item.Message.Timestamp)
+		}
+	}
+
+	a.mu.Lock()
+	a.pinnedMsgs[channelID] = pinnedSet
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.MessagesList.SetPinnedMessages(timestamps)
+	})
 }
 
 // searchMessages searches Slack messages and updates the search picker with results.

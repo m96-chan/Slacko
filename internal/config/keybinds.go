@@ -14,8 +14,9 @@ type Keybinds struct {
 	Help           string `toml:"help"`
 	SwitchTeam     string `toml:"switch_team"`
 	CommandMode    string `toml:"command_mode"`
-	MarkRead       string `toml:"mark_read"`
-	MarkAllRead    string `toml:"mark_all_read"`
+	MarkRead        string `toml:"mark_read"`
+	MarkAllRead     string `toml:"mark_all_read"`
+	PinnedMessages  string `toml:"pinned_messages"`
 
 	ChannelsTree   ChannelsTreeKeybinds   `toml:"channels_tree"`
 	MessagesList   MessagesListKeybinds   `toml:"messages_list"`
@@ -24,6 +25,7 @@ type Keybinds struct {
 	ChannelsPicker ChannelsPickerKeybinds `toml:"channels_picker"`
 	FilePicker     FilePickerKeybinds     `toml:"file_picker"`
 	SearchPicker   SearchPickerKeybinds   `toml:"search_picker"`
+	PinsPicker     PinsPickerKeybinds     `toml:"pins_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -52,6 +54,7 @@ type MessagesListKeybinds struct {
 	Thread          string `toml:"thread"`
 	Yank            string `toml:"yank"`
 	OpenFile        string `toml:"open_file"`
+	Pin             string `toml:"pin"`
 	Cancel          string `toml:"cancel"`
 }
 
@@ -92,6 +95,14 @@ type FilePickerKeybinds struct {
 
 // SearchPickerKeybinds holds keybindings for the search picker popup.
 type SearchPickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
+}
+
+// PinsPickerKeybinds holds keybindings for the pinned messages picker popup.
+type PinsPickerKeybinds struct {
 	Close  string `toml:"close"`
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`

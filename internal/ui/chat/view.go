@@ -37,6 +37,7 @@ type View struct {
 	ReactionsPicker *ReactionsPicker
 	FilePicker      *FilePicker
 	SearchPicker    *SearchPicker
+	PinsPicker      *PinsPicker
 
 	outerFlex        *tview.Flex
 	contentFlex      *tview.Flex
@@ -45,15 +46,18 @@ type View struct {
 	reactionModal    tview.Primitive
 	fileModal         tview.Primitive
 	searchModal       tview.Primitive
+	pinsModal         tview.Primitive
 	activePanel       Panel
 	onMarkRead        func()
 	onMarkAllRead     func()
+	onPinnedMessages  func()
 	channelsVisible   bool
 	threadVisible     bool
 	pickerVisible     bool
 	reactionVisible   bool
 	filePickerVisible bool
 	searchVisible     bool
+	pinsVisible       bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -188,6 +192,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Pins picker (modal overlay).
+	v.PinsPicker = NewPinsPicker(cfg)
+	v.PinsPicker.SetOnClose(func() {
+		v.HidePinsPicker()
+	})
+
+	// Centered modal wrapper for the pins picker.
+	v.pinsModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.PinsPicker, 80, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Pages: main layout + modal overlays.
 	v.Pages = tview.NewPages().
 		AddPage("main", v.outerFlex, true, true)
@@ -212,6 +232,11 @@ func (v *View) SetOnMarkRead(fn func()) {
 // SetOnMarkAllRead sets the callback invoked when the user presses the mark-all-read key.
 func (v *View) SetOnMarkAllRead(fn func()) {
 	v.onMarkAllRead = fn
+}
+
+// SetOnPinnedMessages sets the callback invoked when the user opens the pinned messages popup.
+func (v *View) SetOnPinnedMessages(fn func()) {
+	v.onPinnedMessages = fn
 }
 
 // FocusPanel sets focus to the given panel and updates border colors.
@@ -262,7 +287,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible {
 		return event
 	}
 
@@ -297,6 +322,16 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	case v.cfg.Keybinds.MarkAllRead:
 		if v.onMarkAllRead != nil {
 			v.onMarkAllRead()
+		}
+		return nil
+	case v.cfg.Keybinds.PinnedMessages:
+		if v.pinsVisible {
+			v.HidePinsPicker()
+		} else {
+			v.ShowPinsPicker()
+			if v.onPinnedMessages != nil {
+				v.onPinnedMessages()
+			}
 		}
 		return nil
 	}
@@ -372,6 +407,21 @@ func (v *View) ShowSearchPicker() {
 func (v *View) HideSearchPicker() {
 	v.searchVisible = false
 	v.Pages.RemovePage("search")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowPinsPicker shows the pinned messages picker modal overlay.
+func (v *View) ShowPinsPicker() {
+	v.pinsVisible = true
+	v.PinsPicker.Reset()
+	v.Pages.AddPage("pins", v.pinsModal, true, true)
+	v.app.SetFocus(v.PinsPicker.list)
+}
+
+// HidePinsPicker hides the pinned messages picker and restores focus.
+func (v *View) HidePinsPicker() {
+	v.pinsVisible = false
+	v.Pages.RemovePage("pins")
 	v.FocusPanel(v.activePanel)
 }
 

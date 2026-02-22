@@ -212,3 +212,28 @@ func (c *Client) SearchMessages(query string, params slack.SearchParameters) (*s
 	})
 	return results, err
 }
+
+// ListPins returns all pinned items in a channel.
+func (c *Client) ListPins(channel string) ([]slack.Item, error) {
+	var items []slack.Item
+	err := retryOnRateLimit(func() error {
+		var e error
+		items, _, e = c.api.ListPins(channel)
+		return e
+	})
+	return items, err
+}
+
+// AddPin pins an item to a channel.
+func (c *Client) AddPin(channel string, item slack.ItemRef) error {
+	return retryOnRateLimit(func() error {
+		return c.api.AddPin(channel, item)
+	})
+}
+
+// RemovePin unpins an item from a channel.
+func (c *Client) RemovePin(channel string, item slack.ItemRef) error {
+	return retryOnRateLimit(func() error {
+		return c.api.RemovePin(channel, item)
+	})
+}

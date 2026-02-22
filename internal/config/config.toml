@@ -47,6 +47,7 @@ switch_team = "Ctrl+T"
 command_mode = "Rune[:]"
 mark_read = "Rune[m]"
 mark_all_read = "Rune[M]"
+pinned_messages = "Rune[P]"
 
 [keybinds.channels_tree]
 up = "Rune[k]"
@@ -69,6 +70,7 @@ remove_reaction = "Rune[-]"
 thread = "Rune[t]"
 yank = "Rune[y]"
 open_file = "Rune[o]"
+pin = "Rune[p]"
 cancel = "Escape"
 
 [keybinds.message_input]
@@ -99,6 +101,12 @@ down = "Ctrl+N"
 select = "Enter"
 
 [keybinds.search_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+
+[keybinds.pins_picker]
 close = "Escape"
 up = "Ctrl+P"
 down = "Ctrl+N"

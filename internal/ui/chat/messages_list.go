@@ -32,6 +32,9 @@ type OnReactionRemoveRequestFunc func(channelID, timestamp, reaction string)
 // OnFileOpenRequestFunc is called when the user wants to open/download a file.
 type OnFileOpenRequestFunc func(channelID string, file slack.File)
 
+// OnPinRequestFunc is called when the user wants to pin or unpin a message.
+type OnPinRequestFunc func(channelID, timestamp string, pinned bool)
+
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
@@ -39,6 +42,7 @@ type MessagesList struct {
 	messages               []slack.Message          // oldest first
 	users                  map[string]slack.User
 	channelNames           map[string]string        // channelID → name
+	pinnedSet              map[string]bool           // set of pinned message timestamps
 	selectedIdx            int                      // -1 = no selection
 	channelID              string
 	selfUserID             string
@@ -48,6 +52,7 @@ type MessagesList struct {
 	onReactionAddRequest   OnReactionAddRequestFunc
 	onReactionRemoveRequest OnReactionRemoveRequestFunc
 	onFileOpenRequest      OnFileOpenRequestFunc
+	onPinRequest           OnPinRequestFunc
 	lastReadTS             string // last-read timestamp for "New messages" separator
 }
 
@@ -59,6 +64,7 @@ func NewMessagesList(cfg *config.Config) *MessagesList {
 		selectedIdx:  -1,
 		users:        make(map[string]slack.User),
 		channelNames: make(map[string]string),
+		pinnedSet:    make(map[string]bool),
 	}
 
 	ml.SetDynamicColors(true)
@@ -112,6 +118,30 @@ func (ml *MessagesList) SetOnFileOpenRequest(fn OnFileOpenRequestFunc) {
 	ml.onFileOpenRequest = fn
 }
 
+// SetOnPinRequest sets the callback for pin/unpin requests.
+func (ml *MessagesList) SetOnPinRequest(fn OnPinRequestFunc) {
+	ml.onPinRequest = fn
+}
+
+// SetPinnedMessages sets the full set of pinned message timestamps for the current channel.
+func (ml *MessagesList) SetPinnedMessages(timestamps []string) {
+	ml.pinnedSet = make(map[string]bool, len(timestamps))
+	for _, ts := range timestamps {
+		ml.pinnedSet[ts] = true
+	}
+	ml.render()
+}
+
+// SetPinned updates the pinned state of a single message.
+func (ml *MessagesList) SetPinned(timestamp string, pinned bool) {
+	if pinned {
+		ml.pinnedSet[timestamp] = true
+	} else {
+		delete(ml.pinnedSet, timestamp)
+	}
+	ml.render()
+}
+
 // SetLastRead sets the last-read timestamp for the "New messages" separator.
 func (ml *MessagesList) SetLastRead(ts string) {
 	ml.lastReadTS = ts
@@ -145,6 +175,7 @@ func (ml *MessagesList) SetMessages(channelID string, messages []slack.Message, 
 	ml.channelID = channelID
 	ml.users = users
 	ml.selectedIdx = -1
+	ml.pinnedSet = make(map[string]bool)
 
 	// History returns newest-first; reverse to oldest-first.
 	ml.messages = make([]slack.Message, len(messages))
@@ -370,6 +401,11 @@ func (ml *MessagesList) render() {
 			b.WriteString("  [gray::d](edited)[-::-]\n")
 		}
 
+		// Pin indicator.
+		if ml.pinnedSet[msg.Timestamp] {
+			b.WriteString("  [yellow]\U0001F4CC pinned[-]\n")
+		}
+
 		// File attachments.
 		for _, f := range msg.Files {
 			icon := fileIcon(f.Name)
@@ -498,6 +534,13 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 				ml.onFileOpenRequest(ml.channelID, msg.Files[0])
 				return nil
 			}
+		}
+
+	case ml.cfg.Keybinds.MessagesList.Pin:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onPinRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			ml.onPinRequest(ml.channelID, msg.Timestamp, !ml.pinnedSet[msg.Timestamp])
+			return nil
 		}
 	}
 
