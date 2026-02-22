@@ -17,6 +17,7 @@ const (
 	PanelChannels Panel = iota
 	PanelMessages
 	PanelInput
+	PanelThread
 )
 
 // View is the main chat layout containing all panels.
@@ -30,11 +31,13 @@ type View struct {
 	Header       *tview.TextView
 	MessagesList *MessagesList
 	MessageInput *MessageInput
+	ThreadView   *ThreadView
 
 	contentFlex     *tview.Flex
 	mainFlex        *tview.Flex
 	activePanel     Panel
 	channelsVisible bool
+	threadVisible   bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -69,6 +72,9 @@ func New(app *tview.Application, cfg *config.Config) *View {
 
 	// Input area.
 	v.MessageInput = NewMessageInput(cfg)
+
+	// Thread view (hidden by default).
+	v.ThreadView = NewThreadView(app, cfg)
 
 	// Status bar.
 	v.StatusBar = NewStatusBar(cfg)
@@ -113,6 +119,8 @@ func (v *View) FocusPanel(panel Panel) {
 		v.app.SetFocus(v.MessagesList)
 	case PanelInput:
 		v.app.SetFocus(v.MessageInput)
+	case PanelThread:
+		v.ThreadView.FocusReplies()
 	}
 }
 
@@ -126,9 +134,17 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
-	// Skip Rune-based focus keybinds when input is active so the user can type.
-	if v.activePanel == PanelInput && event.Key() == tcell.KeyRune {
+	// Skip Rune-based focus keybinds when text input is active so the user can type.
+	skipRune := (v.activePanel == PanelInput) ||
+		(v.activePanel == PanelThread && v.ThreadView.IsInputFocused())
+	if skipRune && event.Key() == tcell.KeyRune {
 		return event
+	}
+
+	// Close thread panel if visible.
+	if name == v.cfg.Keybinds.ToggleThread && v.threadVisible {
+		v.CloseThread()
+		return nil
 	}
 
 	switch name {
@@ -166,7 +182,25 @@ func (v *View) SetChannelHeader(name, topic string) {
 	v.Header.SetText(text)
 }
 
-// rebuildMainFlex reconstructs the main flex after toggling the channel tree.
+// OpenThread shows the thread panel and focuses it.
+func (v *View) OpenThread() {
+	v.threadVisible = true
+	v.rebuildMainFlex()
+	v.FocusPanel(PanelThread)
+}
+
+// CloseThread hides the thread panel and clears its state.
+func (v *View) CloseThread() {
+	v.threadVisible = false
+	v.ThreadView.Clear()
+	v.rebuildMainFlex()
+	v.applyBorderStyles()
+	if v.activePanel == PanelThread {
+		v.FocusPanel(PanelMessages)
+	}
+}
+
+// rebuildMainFlex reconstructs the main flex after toggling panels.
 // tview has no InsertItem, so we Clear() and re-add items.
 func (v *View) rebuildMainFlex() {
 	v.mainFlex.Clear()
@@ -174,6 +208,9 @@ func (v *View) rebuildMainFlex() {
 		v.mainFlex.AddItem(v.ChannelsTree, 30, 0, false)
 	}
 	v.mainFlex.AddItem(v.contentFlex, 0, 1, false)
+	if v.threadVisible {
+		v.mainFlex.AddItem(v.ThreadView, 0, 1, false)
+	}
 }
 
 // applyBorderStyles updates border colors based on which panel is active.
@@ -192,6 +229,12 @@ func (v *View) applyBorderStyles() {
 		{v.ChannelsTree, PanelChannels},
 		{v.MessagesList, PanelMessages},
 		{v.MessageInput, PanelInput},
+	}
+	if v.threadVisible {
+		panels = append(panels,
+			bordered{v.ThreadView.repliesView, PanelThread},
+			bordered{v.ThreadView.replyInput, PanelThread},
+		)
 	}
 
 	for _, p := range panels {

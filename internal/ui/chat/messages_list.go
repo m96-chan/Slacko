@@ -28,14 +28,15 @@ type OnEditRequestFunc func(channelID, timestamp, text string)
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
-	cfg            *config.Config
-	messages       []slack.Message          // oldest first
-	users          map[string]slack.User
-	selectedIdx    int                      // -1 = no selection
-	channelID      string
-	selfUserID     string
-	onReplyRequest OnReplyRequestFunc
-	onEditRequest  OnEditRequestFunc
+	cfg              *config.Config
+	messages         []slack.Message          // oldest first
+	users            map[string]slack.User
+	selectedIdx      int                      // -1 = no selection
+	channelID        string
+	selfUserID       string
+	onReplyRequest   OnReplyRequestFunc
+	onEditRequest    OnEditRequestFunc
+	onThreadRequest  OnThreadRequestFunc
 }
 
 // NewMessagesList creates a new messages list component.
@@ -71,6 +72,26 @@ func (ml *MessagesList) SetOnReplyRequest(fn OnReplyRequestFunc) {
 // SetOnEditRequest sets the callback for edit requests.
 func (ml *MessagesList) SetOnEditRequest(fn OnEditRequestFunc) {
 	ml.onEditRequest = fn
+}
+
+// SetOnThreadRequest sets the callback for thread open requests.
+func (ml *MessagesList) SetOnThreadRequest(fn OnThreadRequestFunc) {
+	ml.onThreadRequest = fn
+}
+
+// IncrementReplyCount increments the reply count on a parent message.
+func (ml *MessagesList) IncrementReplyCount(channelID, threadTS string) {
+	if channelID != ml.channelID {
+		return
+	}
+
+	for i := range ml.messages {
+		if ml.messages[i].Timestamp == threadTS {
+			ml.messages[i].ReplyCount++
+			ml.render()
+			return
+		}
+	}
 }
 
 // SetMessages replaces the message list and renders.
@@ -339,6 +360,17 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 				ml.onEditRequest(ml.channelID, msg.Timestamp, msg.Text)
 				return nil
 			}
+		}
+
+	case ml.cfg.Keybinds.MessagesList.Thread:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onThreadRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			threadTS := msg.Timestamp
+			if msg.ThreadTimestamp != "" {
+				threadTS = msg.ThreadTimestamp
+			}
+			ml.onThreadRequest(ml.channelID, threadTS)
+			return nil
 		}
 	}
 

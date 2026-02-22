@@ -145,6 +145,18 @@ func (a *App) showMain() {
 		a.chatView.FocusPanel(chat.PanelInput)
 	})
 
+	// Wire thread open from messages list.
+	a.chatView.MessagesList.SetOnThreadRequest(func(channelID, threadTS string) {
+		a.chatView.OpenThread()
+		go a.loadThread(channelID, threadTS)
+	})
+
+	// Wire thread view callbacks.
+	a.chatView.ThreadView.SetOnSend(a.onThreadReplySend)
+	a.chatView.ThreadView.SetOnClose(func() {
+		a.chatView.CloseThread()
+	})
+
 	a.chatView.StatusBar.SetConnectionStatus(
 		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 	a.tview.SetRoot(a.chatView, true)
@@ -213,6 +225,17 @@ func (a *App) showMain() {
 			msg.Channel = evt.Channel
 			a.tview.QueueUpdateDraw(func() {
 				a.chatView.MessagesList.AppendMessage(evt.Channel, msg)
+				// Increment reply count on parent message for thread replies.
+				if evt.ThreadTimeStamp != "" && evt.TimeStamp != evt.ThreadTimeStamp {
+					a.chatView.MessagesList.IncrementReplyCount(evt.Channel, evt.ThreadTimeStamp)
+				}
+				// Update thread view if this is a reply in the open thread.
+				if a.chatView.ThreadView.IsOpen() &&
+					a.chatView.ThreadView.ChannelID() == evt.Channel &&
+					evt.ThreadTimeStamp != "" &&
+					a.chatView.ThreadView.ThreadTS() == evt.ThreadTimeStamp {
+					a.chatView.ThreadView.AppendReply(msg)
+				}
 			})
 		},
 		OnMessageChanged: func(evt *slackevents.MessageEvent) {
@@ -222,12 +245,20 @@ func (a *App) showMain() {
 			a.tview.QueueUpdateDraw(func() {
 				a.chatView.MessagesList.UpdateMessage(
 					evt.Channel, evt.Message.Timestamp, evt.Message.Text)
+				if a.chatView.ThreadView.IsOpen() &&
+					a.chatView.ThreadView.ChannelID() == evt.Channel {
+					a.chatView.ThreadView.UpdateReply(evt.Message.Timestamp, evt.Message.Text)
+				}
 			})
 		},
 		OnMessageDeleted: func(evt *slackevents.MessageEvent) {
 			a.tview.QueueUpdateDraw(func() {
 				a.chatView.MessagesList.RemoveMessage(
 					evt.Channel, evt.PreviousMessage.Timestamp)
+				if a.chatView.ThreadView.IsOpen() &&
+					a.chatView.ThreadView.ChannelID() == evt.Channel {
+					a.chatView.ThreadView.RemoveReply(evt.PreviousMessage.Timestamp)
+				}
 			})
 		},
 		OnReactionAdded: func(evt *slackevents.ReactionAddedEvent) {
@@ -288,6 +319,11 @@ func (a *App) fetchInitialData() {
 
 // onChannelSelected is called when the user selects a channel in the tree.
 func (a *App) onChannelSelected(channelID string) {
+	// Close thread if open when switching channels.
+	if a.chatView.ThreadView.IsOpen() {
+		a.chatView.CloseThread()
+	}
+
 	a.mu.Lock()
 	for _, ch := range a.channels {
 		if ch.ID == channelID {
@@ -333,6 +369,40 @@ func (a *App) onMessageSend(channelID, text, threadTS string) {
 			slog.Error("failed to send message", "channel", channelID, "error", err)
 		}
 	}()
+}
+
+// onThreadReplySend handles sending a reply in the thread view.
+func (a *App) onThreadReplySend(channelID, text, threadTS string) {
+	go func() {
+		opts := []slack.MsgOption{
+			slack.MsgOptionText(text, false),
+			slack.MsgOptionTS(threadTS),
+		}
+		_, _, err := a.slack.PostMessage(channelID, opts...)
+		if err != nil {
+			slog.Error("failed to send thread reply", "channel", channelID, "thread", threadTS, "error", err)
+		}
+	}()
+}
+
+// loadThread fetches thread replies and updates the thread view.
+func (a *App) loadThread(channelID, threadTS string) {
+	msgs, _, _, err := a.slack.GetConversationReplies(&slack.GetConversationRepliesParameters{
+		ChannelID: channelID,
+		Timestamp: threadTS,
+	})
+	if err != nil {
+		slog.Error("failed to fetch thread replies", "channel", channelID, "thread", threadTS, "error", err)
+		return
+	}
+
+	a.mu.Lock()
+	users := a.users
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.ThreadView.SetMessages(channelID, threadTS, msgs, users)
+	})
 }
 
 // onMessageEdit handles editing an existing message.
