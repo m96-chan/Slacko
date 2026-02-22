@@ -8,11 +8,13 @@
  * Secrets (set via `wrangler secret put`):
  *   SLACK_CLIENT_ID
  *   SLACK_CLIENT_SECRET
+ *   SLACK_APP_TOKEN
  */
 
 interface Env {
 	SLACK_CLIENT_ID: string;
 	SLACK_CLIENT_SECRET: string;
+	SLACK_APP_TOKEN: string;
 }
 
 const USER_SCOPES = [
@@ -151,6 +153,7 @@ async function handleCallback(url: URL, env: Env): Promise<Response> {
 <input type="hidden" name="user_id" value="${escapeHtml(userId)}">
 <input type="hidden" name="team_id" value="${escapeHtml(teamId)}">
 <input type="hidden" name="team_name" value="${escapeHtml(teamName)}">
+<input type="hidden" name="app_token" value="${escapeHtml(env.SLACK_APP_TOKEN)}">
 <input type="hidden" name="state" value="${escapeHtml(csrfState)}">
 <noscript><button type="submit">Click to complete authorization</button></noscript>
 </form>

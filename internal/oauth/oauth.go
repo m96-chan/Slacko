@@ -30,6 +30,7 @@ const UserScopes = "channels:history,channels:read,channels:write,chat:write," +
 // Result holds the tokens and identity returned by the OAuth flow.
 type Result struct {
 	UserToken string
+	AppToken  string // returned by proxy mode (Worker holds this secret)
 	TeamID    string
 	TeamName  string
 	UserID    string
@@ -154,6 +155,7 @@ func handleProxyDone(ch chan<- flowResult, expectedState string) http.HandlerFun
 
 		ch <- flowResult{result: &Result{
 			UserToken: token,
+			AppToken:  r.FormValue("app_token"),
 			TeamID:    r.FormValue("team_id"),
 			TeamName:  r.FormValue("team_name"),
 			UserID:    r.FormValue("user_id"),

@@ -88,6 +88,7 @@ func TestHandleProxyDone(t *testing.T) {
 	// Build a POST request with form data.
 	form := url.Values{
 		"token":     {"xoxp-test-token"},
+		"app_token": {"xapp-test-app-token"},
 		"user_id":   {"U12345"},
 		"team_id":   {"T12345"},
 		"team_name": {"Test Team"},
@@ -110,6 +111,9 @@ func TestHandleProxyDone(t *testing.T) {
 		}
 		if res.result.UserToken != "xoxp-test-token" {
 			t.Errorf("UserToken = %q, want %q", res.result.UserToken, "xoxp-test-token")
+		}
+		if res.result.AppToken != "xapp-test-app-token" {
+			t.Errorf("AppToken = %q, want %q", res.result.AppToken, "xapp-test-app-token")
 		}
 		if res.result.TeamID != "T12345" {
 			t.Errorf("TeamID = %q", res.result.TeamID)

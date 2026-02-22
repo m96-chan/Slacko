@@ -96,6 +96,9 @@ func (f *Form) submitOAuth() {
 	}
 
 	appToken := cfg.AppToken
+	if result.AppToken != "" {
+		appToken = result.AppToken
+	}
 	client, err := slackclient.New(result.UserToken, appToken)
 	if err != nil {
 		f.showError("Authentication failed: " + err.Error())

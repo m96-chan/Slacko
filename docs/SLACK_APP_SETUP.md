@@ -124,7 +124,7 @@ Cloudflare Worker. The Worker also handles the OAuth callback from Slack,
 so the Redirect URL is set to the Worker (not localhost).
 
 1. In your Slack App settings, navigate to **"OAuth & Permissions"**
-2. Under **"Redirect URLs"**, add: `https://slacko-oauth-proxy.<account>.workers.dev/callback`
+2. Under **"Redirect URLs"**, add: `https://slacko-oauth.m96-chan.dev/callback`
 3. Deploy the Worker (see [Deploying the OAuth Proxy](#deploying-the-oauth-proxy))
 
 Users only need `client_id`, `app_token`, and the proxy URL:
@@ -133,7 +133,7 @@ Users only need `client_id`, `app_token`, and the proxy URL:
 [oauth]
 client_id = "your-client-id"
 app_token = "xapp-your-app-token"
-proxy_url = "https://slacko-oauth-proxy.your-account.workers.dev"
+proxy_url = "https://slacko-oauth.m96-chan.dev"
 ```
 
 **Environment variables** (both modes):

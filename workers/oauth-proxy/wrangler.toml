@@ -2,6 +2,10 @@ name = "slacko-oauth-proxy"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+routes = [
+  { pattern = "slacko-oauth.m96-chan.dev/*", custom_domain = true }
+]
+
 # Secrets (set via `wrangler secret put`):
 #   SLACK_CLIENT_ID
 #   SLACK_CLIENT_SECRET
