@@ -38,6 +38,13 @@ type MessageInput struct {
 	onSend    OnSendFunc
 	onEdit    OnEditFunc
 	onCancel  func() // called when user cancels reply/edit
+
+	// Autocomplete state.
+	mentionsList       *MentionsList
+	acKind             autocompleteKind
+	acStart            int // byte offset of trigger char in text
+	onShowAutocomplete func(count int)
+	onHideAutocomplete func()
 }
 
 // NewMessageInput creates a new message input component.
@@ -52,6 +59,7 @@ func NewMessageInput(cfg *config.Config) *MessageInput {
 	mi.SetPlaceholder("Type a message...")
 
 	mi.SetInputCapture(mi.handleInput)
+	mi.SetChangedFunc(mi.onTextChanged)
 
 	return mi
 }
@@ -69,6 +77,21 @@ func (mi *MessageInput) SetOnEdit(fn OnEditFunc) {
 // SetOnCancel sets the callback for cancelling reply/edit mode.
 func (mi *MessageInput) SetOnCancel(fn func()) {
 	mi.onCancel = fn
+}
+
+// SetMentionsList sets the autocomplete dropdown reference.
+func (mi *MessageInput) SetMentionsList(ml *MentionsList) {
+	mi.mentionsList = ml
+}
+
+// SetOnShowAutocomplete sets the callback for showing the autocomplete dropdown.
+func (mi *MessageInput) SetOnShowAutocomplete(fn func(count int)) {
+	mi.onShowAutocomplete = fn
+}
+
+// SetOnHideAutocomplete sets the callback for hiding the autocomplete dropdown.
+func (mi *MessageInput) SetOnHideAutocomplete(fn func()) {
+	mi.onHideAutocomplete = fn
 }
 
 // SetChannel sets the active channel for outgoing messages.
@@ -104,8 +127,27 @@ func (mi *MessageInput) Mode() inputMode {
 func (mi *MessageInput) handleInput(event *tcell.EventKey) *tcell.EventKey {
 	name := keys.Normalize(event.Name())
 
+	// Autocomplete navigation when dropdown is active.
+	if mi.acKind != acNone && mi.mentionsList != nil {
+		switch {
+		case name == mi.cfg.Keybinds.MessageInput.TabComplete:
+			mi.completeAutocomplete()
+			return nil
+		case event.Key() == tcell.KeyUp:
+			mi.mentionsList.SelectPrev()
+			return nil
+		case event.Key() == tcell.KeyDown:
+			mi.mentionsList.SelectNext()
+			return nil
+		case name == mi.cfg.Keybinds.MessageInput.Cancel:
+			mi.dismissAutocomplete()
+			return nil
+		}
+	}
+
 	switch name {
 	case mi.cfg.Keybinds.MessageInput.Send:
+		mi.dismissAutocomplete()
 		mi.send()
 		return nil
 
@@ -152,6 +194,64 @@ func (mi *MessageInput) send() {
 
 	mi.SetText("", false)
 	mi.cancelMode()
+}
+
+// onTextChanged detects autocomplete triggers after each text change.
+func (mi *MessageInput) onTextChanged() {
+	if mi.mentionsList == nil {
+		return
+	}
+
+	text := mi.GetText()
+	kind, prefix, start := findAutocompleteTrigger(text)
+
+	if kind == acNone {
+		if mi.acKind != acNone {
+			mi.dismissAutocomplete()
+		}
+		return
+	}
+
+	mi.acKind = kind
+	mi.acStart = start
+
+	count := mi.mentionsList.Filter(kind, prefix, mi.cfg.AutocompleteLimit)
+	if count > 0 {
+		if mi.onShowAutocomplete != nil {
+			mi.onShowAutocomplete(count)
+		}
+	} else {
+		mi.dismissAutocomplete()
+	}
+}
+
+// completeAutocomplete inserts the selected suggestion into the text.
+func (mi *MessageInput) completeAutocomplete() {
+	if mi.mentionsList == nil {
+		return
+	}
+
+	sel := mi.mentionsList.GetSelected()
+	if sel.insertText == "" {
+		return
+	}
+
+	text := mi.GetText()
+	newText := text[:mi.acStart] + sel.insertText
+	mi.SetText(newText, true)
+
+	mi.acKind = acNone
+	if mi.onHideAutocomplete != nil {
+		mi.onHideAutocomplete()
+	}
+}
+
+// dismissAutocomplete hides the dropdown without completing.
+func (mi *MessageInput) dismissAutocomplete() {
+	mi.acKind = acNone
+	if mi.onHideAutocomplete != nil {
+		mi.onHideAutocomplete()
+	}
 }
 
 // cancelMode resets the input to normal mode.

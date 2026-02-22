@@ -314,6 +314,8 @@ func (a *App) fetchInitialData() {
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.ChannelsTree.Populate(channels, userMap, a.slack.UserID)
 		a.chatView.ChannelsPicker.SetData(channels, userMap, a.slack.UserID)
+		a.chatView.MentionsList.SetUsers(userMap)
+		a.chatView.MentionsList.SetChannels(channels, userMap, a.slack.UserID)
 		a.chatView.MessagesList.SetSelfUserID(a.slack.UserID)
 		a.chatView.StatusBar.SetConnectionStatus(
 			fmt.Sprintf("%s (%s) — connected (%d channels, %d users)",

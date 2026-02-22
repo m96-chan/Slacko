@@ -31,6 +31,7 @@ type View struct {
 	Header         *tview.TextView
 	MessagesList   *MessagesList
 	MessageInput   *MessageInput
+	MentionsList   *MentionsList
 	ThreadView     *ThreadView
 	ChannelsPicker *ChannelsPicker
 
@@ -77,16 +78,29 @@ func New(app *tview.Application, cfg *config.Config) *View {
 	// Input area.
 	v.MessageInput = NewMessageInput(cfg)
 
+	// Mentions autocomplete dropdown (hidden by default, 0 height).
+	v.MentionsList = NewMentionsList(cfg)
+
+	// Wire autocomplete show/hide between MessageInput and View.
+	v.MessageInput.SetMentionsList(v.MentionsList)
+	v.MessageInput.SetOnShowAutocomplete(func(count int) {
+		v.showMentions(count)
+	})
+	v.MessageInput.SetOnHideAutocomplete(func() {
+		v.hideMentions()
+	})
+
 	// Thread view (hidden by default).
 	v.ThreadView = NewThreadView(app, cfg)
 
 	// Status bar.
 	v.StatusBar = NewStatusBar(cfg)
 
-	// Content flex (right side): header, messages, input stacked vertically.
+	// Content flex (right side): header, messages, mentions dropdown, input.
 	v.contentFlex = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.Header, 1, 0, false).
 		AddItem(v.MessagesList, 0, 1, false).
+		AddItem(v.MentionsList, 0, 0, false).
 		AddItem(v.MessageInput, 3, 0, false)
 
 	// Main flex (horizontal): channel tree + content.
@@ -225,6 +239,18 @@ func (v *View) HidePicker() {
 	v.pickerVisible = false
 	v.Pages.RemovePage("picker")
 	v.FocusPanel(v.activePanel)
+}
+
+// showMentions resizes the mentions dropdown to show the given number of items.
+func (v *View) showMentions(count int) {
+	// Height = items + 2 for border.
+	height := count + 2
+	v.contentFlex.ResizeItem(v.MentionsList, height, 0)
+}
+
+// hideMentions collapses the mentions dropdown to zero height.
+func (v *View) hideMentions() {
+	v.contentFlex.ResizeItem(v.MentionsList, 0, 0)
 }
 
 // SetChannelHeader updates the header with channel name and topic.
