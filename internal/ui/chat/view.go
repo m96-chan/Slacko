@@ -22,22 +22,26 @@ const (
 
 // View is the main chat layout containing all panels.
 type View struct {
-	*tview.Flex
+	*tview.Pages
 	app        *tview.Application
 	cfg        *config.Config
 	StatusBar  *StatusBar
 
-	ChannelsTree *ChannelsTree
-	Header       *tview.TextView
-	MessagesList *MessagesList
-	MessageInput *MessageInput
-	ThreadView   *ThreadView
+	ChannelsTree   *ChannelsTree
+	Header         *tview.TextView
+	MessagesList   *MessagesList
+	MessageInput   *MessageInput
+	ThreadView     *ThreadView
+	ChannelsPicker *ChannelsPicker
 
+	outerFlex       *tview.Flex
 	contentFlex     *tview.Flex
 	mainFlex        *tview.Flex
+	pickerModal     tview.Primitive
 	activePanel     Panel
 	channelsVisible bool
 	threadVisible   bool
+	pickerVisible   bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -91,9 +95,29 @@ func New(app *tview.Application, cfg *config.Config) *View {
 		AddItem(v.contentFlex, 0, 1, false)
 
 	// Outer flex (vertical): main + status bar.
-	v.Flex = tview.NewFlex().SetDirection(tview.FlexRow).
+	v.outerFlex = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(v.mainFlex, 0, 1, false).
 		AddItem(v.StatusBar, 1, 0, false)
+
+	// Channel picker (modal overlay).
+	v.ChannelsPicker = NewChannelsPicker(cfg)
+	v.ChannelsPicker.SetOnClose(func() {
+		v.HidePicker()
+	})
+
+	// Centered modal wrapper for the picker.
+	v.pickerModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.ChannelsPicker, 60, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
+	// Pages: main layout + picker overlay.
+	v.Pages = tview.NewPages().
+		AddPage("main", v.outerFlex, true, true)
 
 	// Default focus on messages.
 	v.activePanel = PanelMessages
@@ -128,10 +152,25 @@ func (v *View) FocusPanel(panel Panel) {
 func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	name := keys.Normalize(event.Name())
 
-	// Toggle channels sidebar.
+	// Toggle channels sidebar (Ctrl+B — non-rune, always works).
 	if name == v.cfg.Keybinds.ToggleChannels {
 		v.ToggleChannels()
 		return nil
+	}
+
+	// Toggle channel picker (Ctrl+K — non-rune, always works).
+	if name == v.cfg.Keybinds.ChannelPicker {
+		if v.pickerVisible {
+			v.HidePicker()
+		} else {
+			v.ShowPicker()
+		}
+		return nil
+	}
+
+	// When the picker is visible, all other keys go to the picker input.
+	if v.pickerVisible {
+		return event
 	}
 
 	// Skip Rune-based focus keybinds when text input is active so the user can type.
@@ -171,6 +210,21 @@ func (v *View) ToggleChannels() {
 	if !v.channelsVisible && v.activePanel == PanelChannels {
 		v.FocusPanel(PanelMessages)
 	}
+}
+
+// ShowPicker shows the channel picker modal overlay.
+func (v *View) ShowPicker() {
+	v.pickerVisible = true
+	v.ChannelsPicker.Reset()
+	v.Pages.AddPage("picker", v.pickerModal, true, true)
+	v.app.SetFocus(v.ChannelsPicker.input)
+}
+
+// HidePicker hides the channel picker and restores focus.
+func (v *View) HidePicker() {
+	v.pickerVisible = false
+	v.Pages.RemovePage("picker")
+	v.FocusPanel(v.activePanel)
 }
 
 // SetChannelHeader updates the header with channel name and topic.

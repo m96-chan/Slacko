@@ -3,20 +3,22 @@ package config
 // Keybinds holds all keybinding configuration. Values are plain strings
 // matching the tcell.EventKey.Name() format (e.g. "Rune[j]", "Ctrl+W", "Enter").
 type Keybinds struct {
-	FocusChannels string `toml:"focus_channels"`
-	FocusMessages string `toml:"focus_messages"`
-	FocusInput    string `toml:"focus_input"`
+	FocusChannels  string `toml:"focus_channels"`
+	FocusMessages  string `toml:"focus_messages"`
+	FocusInput     string `toml:"focus_input"`
 	ToggleThread   string `toml:"toggle_thread"`
 	ToggleChannels string `toml:"toggle_channels"`
+	ChannelPicker  string `toml:"channel_picker"`
 	Quit           string `toml:"quit"`
-	Help          string `toml:"help"`
-	SwitchTeam    string `toml:"switch_team"`
-	CommandMode   string `toml:"command_mode"`
+	Help           string `toml:"help"`
+	SwitchTeam     string `toml:"switch_team"`
+	CommandMode    string `toml:"command_mode"`
 
-	ChannelsTree ChannelsTreeKeybinds `toml:"channels_tree"`
-	MessagesList MessagesListKeybinds `toml:"messages_list"`
-	MessageInput MessageInputKeybinds `toml:"message_input"`
-	ThreadView   ThreadViewKeybinds   `toml:"thread_view"`
+	ChannelsTree   ChannelsTreeKeybinds   `toml:"channels_tree"`
+	MessagesList   MessagesListKeybinds   `toml:"messages_list"`
+	MessageInput   MessageInputKeybinds   `toml:"message_input"`
+	ThreadView     ThreadViewKeybinds     `toml:"thread_view"`
+	ChannelsPicker ChannelsPickerKeybinds `toml:"channels_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -63,4 +65,12 @@ type ThreadViewKeybinds struct {
 	Down  string `toml:"down"`
 	Reply string `toml:"reply"`
 	Close string `toml:"close"`
+}
+
+// ChannelsPickerKeybinds holds keybindings for the channel picker popup.
+type ChannelsPickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
 }

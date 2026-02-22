@@ -37,6 +37,7 @@ focus_messages = "Rune[2]"
 focus_input = "Rune[3]"
 toggle_thread = "Rune[t]"
 toggle_channels = "Ctrl+B"
+channel_picker = "Ctrl+K"
 quit = "Ctrl+C"
 help = "Rune[?]"
 switch_team = "Ctrl+T"
@@ -77,6 +78,12 @@ up = "Rune[k]"
 down = "Rune[j]"
 reply = "Rune[r]"
 close = "Escape"
+
+[keybinds.channels_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
 
 [theme]
 
