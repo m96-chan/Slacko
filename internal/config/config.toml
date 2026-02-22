@@ -5,6 +5,7 @@ show_attachment_links = true
 autocomplete_limit = 10
 messages_limit = 50
 download_dir = ""
+ascii_icons = false
 
 [markdown]
 enabled = true
@@ -50,6 +51,7 @@ command_mode = "Rune[:]"
 mark_read = "Rune[m]"
 mark_all_read = "Rune[M]"
 pinned_messages = "Rune[P]"
+starred_items = "Rune[S]"
 channel_info = "Ctrl+O"
 
 [keybinds.channels_tree]
@@ -76,6 +78,8 @@ yank = "Rune[y]"
 copy_permalink = "Rune[u]"
 open_file = "Rune[o]"
 pin = "Rune[p]"
+star = "Rune[s]"
+user_profile = "Rune[U]"
 cancel = "Escape"
 
 [keybinds.message_input]
@@ -116,6 +120,18 @@ close = "Escape"
 up = "Ctrl+P"
 down = "Ctrl+N"
 select = "Enter"
+
+[keybinds.starred_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+unstar = "Rune[x]"
+
+[keybinds.user_profile_panel]
+close = "Escape"
+open_dm = "Rune[d]"
+copy_id = "Rune[i]"
 
 [keybinds.channel_info_panel]
 close = "Escape"
@@ -185,6 +201,17 @@ foreground = "yellow"
 [theme.messages_list.file_attachment]
 foreground = "blue"
 
+[theme.messages_list.attachment_title]
+foreground = "cyan"
+attributes = "bold"
+
+[theme.messages_list.attachment_text]
+foreground = "gray"
+
+[theme.messages_list.attachment_footer]
+foreground = "gray"
+attributes = "dim"
+
 [theme.messages_list.reaction_self]
 foreground = "yellow"
 
@@ -225,6 +252,17 @@ attributes = "dim"
 
 [theme.thread_view.file_attachment]
 foreground = "blue"
+
+[theme.thread_view.attachment_title]
+foreground = "cyan"
+attributes = "bold"
+
+[theme.thread_view.attachment_text]
+foreground = "gray"
+
+[theme.thread_view.attachment_footer]
+foreground = "gray"
+attributes = "dim"
 
 [theme.thread_view.reaction]
 foreground = "gray"

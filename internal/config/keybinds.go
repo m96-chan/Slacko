@@ -17,6 +17,7 @@ type Keybinds struct {
 	MarkRead        string `toml:"mark_read"`
 	MarkAllRead     string `toml:"mark_all_read"`
 	PinnedMessages  string `toml:"pinned_messages"`
+	StarredItems    string `toml:"starred_items"`
 	ChannelInfo     string `toml:"channel_info"`
 
 	ChannelsTree   ChannelsTreeKeybinds   `toml:"channels_tree"`
@@ -27,6 +28,8 @@ type Keybinds struct {
 	FilePicker     FilePickerKeybinds     `toml:"file_picker"`
 	SearchPicker   SearchPickerKeybinds   `toml:"search_picker"`
 	PinsPicker        PinsPickerKeybinds     `toml:"pins_picker"`
+	StarredPicker     StarredPickerKeybinds  `toml:"starred_picker"`
+	UserProfilePanel  UserProfileKeybinds    `toml:"user_profile_panel"`
 	ChannelInfoPanel  ChannelInfoKeybinds    `toml:"channel_info_panel"`
 }
 
@@ -59,6 +62,8 @@ type MessagesListKeybinds struct {
 	CopyPermalink   string `toml:"copy_permalink"`
 	OpenFile        string `toml:"open_file"`
 	Pin             string `toml:"pin"`
+	Star            string `toml:"star"`
+	UserProfile     string `toml:"user_profile"`
 	Cancel          string `toml:"cancel"`
 }
 
@@ -111,6 +116,22 @@ type PinsPickerKeybinds struct {
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`
 	Select string `toml:"select"`
+}
+
+// StarredPickerKeybinds holds keybindings for the starred items picker popup.
+type StarredPickerKeybinds struct {
+	Close    string `toml:"close"`
+	Up       string `toml:"up"`
+	Down     string `toml:"down"`
+	Select   string `toml:"select"`
+	Unstar   string `toml:"unstar"`
+}
+
+// UserProfileKeybinds holds keybindings for the user profile panel.
+type UserProfileKeybinds struct {
+	Close     string `toml:"close"`
+	OpenDM    string `toml:"open_dm"`
+	CopyID    string `toml:"copy_id"`
 }
 
 // ChannelInfoKeybinds holds keybindings for the channel info panel.

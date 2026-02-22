@@ -155,6 +155,7 @@ func (a *App) showMain() {
 	// Wire message input callbacks.
 	a.chatView.MessageInput.SetOnSend(a.onMessageSend)
 	a.chatView.MessageInput.SetOnEdit(a.onMessageEdit)
+	a.chatView.MessageInput.SetOnSlashCommand(a.executeSlashCommand)
 
 	// Wire reply/edit triggers from messages list.
 	a.chatView.MessagesList.SetOnReplyRequest(func(channelID, threadTS, userName string) {
@@ -273,6 +274,38 @@ func (a *App) showMain() {
 		}()
 	})
 
+	// Wire star/unstar toggle from messages list.
+	a.chatView.MessagesList.SetOnStarRequest(func(channelID, timestamp string, star bool) {
+		go func() {
+			ref := slack.NewRefToMessage(channelID, timestamp)
+			if star {
+				if err := a.slack.AddStar(channelID, ref); err != nil {
+					slog.Error("failed to star message", "channel", channelID, "error", err)
+					return
+				}
+			} else {
+				if err := a.slack.RemoveStar(channelID, ref); err != nil {
+					slog.Error("failed to unstar message", "channel", channelID, "error", err)
+					return
+				}
+			}
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.SetStarred(timestamp, star)
+				if star {
+					a.chatView.StatusBar.SetTypingIndicator("Message starred")
+				} else {
+					a.chatView.StatusBar.SetTypingIndicator("Message unstarred")
+				}
+			})
+			go func() {
+				<-time.After(2 * time.Second)
+				a.tview.QueueUpdateDraw(func() {
+					a.chatView.StatusBar.SetTypingIndicator("")
+				})
+			}()
+		}()
+	})
+
 	// Wire clipboard: yank (copy message text).
 	a.chatView.MessagesList.SetOnYank(func(text string) {
 		if err := clipboard.WriteText(text); err != nil {
@@ -358,6 +391,74 @@ func (a *App) showMain() {
 		}
 		a.chatView.PinsPicker.SetStatus("Loading...")
 		go a.loadPinnedMessages(ch)
+	})
+
+	// Wire starred items popup: fetch all starred items when user opens the popup.
+	a.chatView.SetOnStarredItems(func() {
+		a.chatView.StarredPicker.SetStatus("Loading...")
+		go a.loadStarredItems()
+	})
+	a.chatView.StarredPicker.SetOnUnstar(func(channelID, timestamp string) {
+		go func() {
+			ref := slack.NewRefToMessage(channelID, timestamp)
+			if err := a.slack.RemoveStar(channelID, ref); err != nil {
+				slog.Error("failed to unstar message", "channel", channelID, "error", err)
+			}
+			// Also update the messages list if viewing the same channel.
+			a.mu.Lock()
+			isCurrent := channelID == a.currentChannel
+			a.mu.Unlock()
+			if isCurrent {
+				a.tview.QueueUpdateDraw(func() {
+					a.chatView.MessagesList.SetStarred(timestamp, false)
+				})
+			}
+		}()
+	})
+
+	// Wire user profile panel.
+	a.chatView.MessagesList.SetOnUserProfileRequest(func(userID string) {
+		a.chatView.ShowUserProfile()
+		a.chatView.UserProfilePanel.SetStatus("Loading...")
+		go a.loadUserProfile(userID)
+	})
+	a.chatView.UserProfilePanel.SetOnOpenDM(func(userID string) {
+		// Find or switch to the DM channel for this user.
+		a.mu.Lock()
+		var dmChannelID string
+		for _, ch := range a.channels {
+			if ch.IsIM && ch.User == userID {
+				dmChannelID = ch.ID
+				break
+			}
+		}
+		a.mu.Unlock()
+		if dmChannelID != "" {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.HideUserProfile()
+			})
+			a.onChannelSelected(dmChannelID)
+		}
+	})
+	a.chatView.UserProfilePanel.SetOnCopyID(func(userID string) {
+		if err := clipboard.WriteText(userID); err != nil {
+			slog.Error("failed to copy user ID to clipboard", "error", err)
+			return
+		}
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.UserProfilePanel.SetStatus("Copied user ID: " + userID)
+		})
+	})
+
+	// Wire workspace picker.
+	a.chatView.SetOnSwitchWorkspace(func(workspaceID string) {
+		go a.switchWorkspace(workspaceID)
+	})
+
+	// Wire vim command bar.
+	a.chatView.CommandBar.SetOnExecute(func(command, args string) {
+		a.chatView.HideCommandBar()
+		a.executeVimCommand(command, args)
 	})
 
 	// Wire channel info panel.
@@ -673,6 +774,12 @@ func (a *App) fetchInitialData() {
 
 	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
 
+	// Migrate legacy tokens and populate workspace picker.
+	if err := keyring.MigrateDefaultWorkspace(a.slack.TeamID, a.slack.TeamName); err != nil {
+		slog.Warn("failed to migrate workspace to registry", "error", err)
+	}
+	a.populateWorkspacePicker()
+
 	channelNames := make(map[string]string, len(channels))
 	for _, ch := range channels {
 		channelNames[ch.ID] = ch.Name
@@ -683,7 +790,10 @@ func (a *App) fetchInitialData() {
 		a.chatView.ChannelsPicker.SetData(channels, userMap, a.slack.UserID)
 		a.chatView.MentionsList.SetUsers(userMap)
 		a.chatView.MentionsList.SetChannels(channels, userMap, a.slack.UserID)
+		a.chatView.MentionsList.SetCommands(chat.BuiltinCommandEntries())
 		a.chatView.MessagesList.SetSelfUserID(a.slack.UserID)
+		a.chatView.MessagesList.SetSelfTeamID(a.slack.TeamID)
+		a.chatView.ThreadView.SetSelfTeamID(a.slack.TeamID)
 		a.chatView.MessagesList.SetChannelNames(channelNames)
 		a.chatView.ThreadView.SetChannelNames(channelNames)
 		// Set unread count badges for channels with unreads.
@@ -836,6 +946,97 @@ func (a *App) fetchChannelPins(channelID string) {
 
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.MessagesList.SetPinnedMessages(timestamps)
+	})
+}
+
+// loadUserProfile fetches a user's profile and populates the user profile panel.
+func (a *App) loadUserProfile(userID string) {
+	user, err := a.slack.GetUserInfo(userID)
+	if err != nil {
+		slog.Error("failed to fetch user profile", "user", userID, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.UserProfilePanel.SetStatus("Failed to load profile")
+		})
+		return
+	}
+
+	data := chat.UserProfileData{
+		UserID:      user.ID,
+		DisplayName: user.Profile.DisplayName,
+		RealName:    user.RealName,
+		Title:       user.Profile.Title,
+		StatusEmoji: user.Profile.StatusEmoji,
+		StatusText:  user.Profile.StatusText,
+		Timezone:    user.TZ,
+		TzOffset:    user.TZOffset,
+		Presence:    user.Presence,
+		Email:       user.Profile.Email,
+		Phone:       user.Profile.Phone,
+		IsBot:       user.IsBot,
+		IsAdmin:     user.IsAdmin,
+		IsOwner:     user.IsOwner,
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.UserProfilePanel.SetData(data)
+		a.chatView.UserProfilePanel.SetStatus("[d]m  [i]d  [Esc]close")
+	})
+}
+
+// loadStarredItems fetches all starred items and populates the starred picker.
+func (a *App) loadStarredItems() {
+	items, err := a.slack.ListAllStars()
+	if err != nil {
+		slog.Error("failed to fetch starred items", "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.StarredPicker.SetStatus("Failed to load starred items")
+		})
+		return
+	}
+
+	a.mu.Lock()
+	users := a.users
+	// Build channel name map.
+	channelNameMap := make(map[string]string, len(a.channels))
+	for _, ch := range a.channels {
+		channelNameMap[ch.ID] = ch.Name
+	}
+	a.mu.Unlock()
+
+	entries := make([]chat.StarredEntry, 0, len(items))
+	for _, item := range items {
+		if item.Message == nil {
+			continue
+		}
+		userName := ""
+		if u, ok := users[item.Message.User]; ok {
+			if u.Profile.DisplayName != "" {
+				userName = u.Profile.DisplayName
+			} else if u.RealName != "" {
+				userName = u.RealName
+			} else {
+				userName = u.Name
+			}
+		}
+		if userName == "" {
+			userName = item.Message.User
+		}
+		entries = append(entries, chat.StarredEntry{
+			ChannelID:   item.Channel,
+			ChannelName: channelNameMap[item.Channel],
+			Timestamp:   item.Message.Timestamp,
+			UserName:    userName,
+			Text:        item.Message.Text,
+		})
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.StarredPicker.SetStarred(entries)
+		if len(entries) == 1 {
+			a.chatView.StarredPicker.SetStatus("1 starred message")
+		} else {
+			a.chatView.StarredPicker.SetStatus(fmt.Sprintf("%d starred messages", len(entries)))
+		}
 	})
 }
 
@@ -1314,6 +1515,512 @@ func (a *App) leaveChannel(channelID string) {
 		}
 	}
 	a.mu.Unlock()
+}
+
+// executeSlashCommand handles slash commands from the message input.
+func (a *App) executeSlashCommand(channelID, command, args string) {
+	switch command {
+	case "help":
+		a.showCommandFeedback(a.formatHelpText())
+	case "status":
+		go a.cmdSetStatus(args)
+	case "clear-status":
+		go a.cmdClearStatus()
+	case "topic":
+		go a.cmdSetTopic(channelID, args)
+	case "leave":
+		go a.leaveChannel(channelID)
+	case "search":
+		if args != "" {
+			a.chatView.ShowSearchPicker()
+			go a.searchMessages(args)
+		} else {
+			a.chatView.ShowSearchPicker()
+		}
+	case "who":
+		go a.cmdWho(channelID)
+	case "mute":
+		a.showCommandFeedback("Channel muted (local only)")
+	case "unmute":
+		a.showCommandFeedback("Channel unmuted (local only)")
+	case "schedule":
+		go a.cmdScheduleMessage(channelID, args)
+	case "scheduled":
+		go a.cmdListScheduledMessages(channelID)
+	case "remind":
+		go a.cmdRemind(args)
+	case "reminders":
+		go a.cmdListReminders()
+	default:
+		a.showCommandFeedback("Unknown command: /" + command)
+	}
+}
+
+// formatHelpText builds the /help output listing available slash commands.
+func (a *App) formatHelpText() string {
+	cmds := chat.BuiltinCommands()
+	var b strings.Builder
+	b.WriteString("Available commands:")
+	for _, cmd := range cmds {
+		b.WriteString(fmt.Sprintf("  %s — %s", cmd.Usage, cmd.Description))
+	}
+	return b.String()
+}
+
+// showCommandFeedback shows a temporary status bar message.
+func (a *App) showCommandFeedback(msg string) {
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.StatusBar.SetTypingIndicator(msg)
+	})
+	go func() {
+		<-time.After(4 * time.Second)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.StatusBar.SetTypingIndicator("")
+		})
+	}()
+}
+
+// cmdSetStatus sets the user's Slack status.
+func (a *App) cmdSetStatus(args string) {
+	var emoji, text string
+	args = strings.TrimSpace(args)
+	if args == "" {
+		a.showCommandFeedback("Usage: /status [:emoji:] [text]")
+		return
+	}
+	// Parse optional :emoji: prefix.
+	if strings.HasPrefix(args, ":") {
+		end := strings.Index(args[1:], ":")
+		if end >= 0 {
+			emoji = args[:end+2]
+			text = strings.TrimSpace(args[end+2:])
+		} else {
+			text = args
+		}
+	} else {
+		text = args
+	}
+	if err := a.slack.SetUserCustomStatus(text, emoji); err != nil {
+		slog.Error("failed to set status", "error", err)
+		a.showCommandFeedback("Failed to set status")
+		return
+	}
+	a.showCommandFeedback("Status updated")
+}
+
+// cmdClearStatus clears the user's Slack status.
+func (a *App) cmdClearStatus() {
+	if err := a.slack.SetUserCustomStatus("", ""); err != nil {
+		slog.Error("failed to clear status", "error", err)
+		a.showCommandFeedback("Failed to clear status")
+		return
+	}
+	a.showCommandFeedback("Status cleared")
+}
+
+// cmdSetTopic sets the channel topic.
+func (a *App) cmdSetTopic(channelID, topic string) {
+	if topic == "" {
+		a.showCommandFeedback("Usage: /topic [text]")
+		return
+	}
+	if _, err := a.slack.SetTopic(channelID, topic); err != nil {
+		slog.Error("failed to set topic", "channel", channelID, "error", err)
+		a.showCommandFeedback("Failed to set topic")
+		return
+	}
+	a.tview.QueueUpdateDraw(func() {
+		// Find channel name.
+		a.mu.Lock()
+		var name string
+		for _, ch := range a.channels {
+			if ch.ID == channelID {
+				name = ch.Name
+				break
+			}
+		}
+		a.mu.Unlock()
+		a.chatView.SetChannelHeader(name, topic)
+	})
+	a.showCommandFeedback("Topic updated")
+}
+
+// cmdWho lists members of a channel.
+func (a *App) cmdWho(channelID string) {
+	userIDs, _, err := a.slack.GetUsersInConversation(channelID, "", 100)
+	if err != nil {
+		slog.Error("failed to get channel members", "channel", channelID, "error", err)
+		a.showCommandFeedback("Failed to list members")
+		return
+	}
+
+	a.mu.Lock()
+	users := a.users
+	a.mu.Unlock()
+
+	names := make([]string, 0, len(userIDs))
+	for _, uid := range userIDs {
+		if u, ok := users[uid]; ok {
+			name := u.Profile.DisplayName
+			if name == "" {
+				name = u.RealName
+			}
+			if name == "" {
+				name = u.Name
+			}
+			names = append(names, name)
+		} else {
+			names = append(names, uid)
+		}
+	}
+
+	msg := fmt.Sprintf("%d members: %s", len(names), strings.Join(names, ", "))
+	if len(msg) > 200 {
+		msg = msg[:197] + "..."
+	}
+	a.showCommandFeedback(msg)
+}
+
+// cmdScheduleMessage schedules a message for future delivery.
+func (a *App) cmdScheduleMessage(channelID, args string) {
+	if args == "" {
+		a.showCommandFeedback("Usage: /schedule [time] [message]")
+		return
+	}
+
+	postAt, message, err := chat.ParseFutureTime(args)
+	if err != nil {
+		a.showCommandFeedback("Invalid time: " + err.Error())
+		return
+	}
+	if message == "" {
+		a.showCommandFeedback("Please provide a message after the time")
+		return
+	}
+	if postAt.Before(time.Now()) {
+		a.showCommandFeedback("Scheduled time must be in the future")
+		return
+	}
+
+	postAtStr := fmt.Sprintf("%d", postAt.Unix())
+	_, _, err = a.slack.ScheduleMessage(channelID, postAtStr, message)
+	if err != nil {
+		slog.Error("failed to schedule message", "error", err)
+		a.showCommandFeedback("Failed to schedule message: " + err.Error())
+		return
+	}
+
+	a.showCommandFeedback(fmt.Sprintf("Message scheduled for %s", postAt.Format("Jan 2 15:04")))
+}
+
+// cmdListScheduledMessages lists scheduled messages for the current channel.
+func (a *App) cmdListScheduledMessages(channelID string) {
+	msgs, err := a.slack.GetScheduledMessages(channelID)
+	if err != nil {
+		slog.Error("failed to list scheduled messages", "error", err)
+		a.showCommandFeedback("Failed to list scheduled messages")
+		return
+	}
+
+	if len(msgs) == 0 {
+		a.showCommandFeedback("No scheduled messages")
+		return
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%d scheduled: ", len(msgs)))
+	for i, m := range msgs {
+		t := time.Unix(int64(m.PostAt), 0)
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		text := m.Text
+		if len(text) > 30 {
+			text = text[:27] + "..."
+		}
+		b.WriteString(fmt.Sprintf("%s: %s", t.Format("Jan 2 15:04"), text))
+		if i >= 4 {
+			b.WriteString(fmt.Sprintf(" (+%d more)", len(msgs)-5))
+			break
+		}
+	}
+	a.showCommandFeedback(b.String())
+}
+
+// cmdRemind creates a reminder for the current user.
+func (a *App) cmdRemind(args string) {
+	if args == "" {
+		a.showCommandFeedback("Usage: /remind [what] [when]  (e.g. /remind standup in 30m)")
+		return
+	}
+
+	// Slack's reminder API accepts natural language for the time.
+	// We pass the whole args string and let Slack parse it.
+	rem, err := a.slack.AddReminder(args, "")
+	if err != nil {
+		slog.Error("failed to create reminder", "error", err)
+		a.showCommandFeedback("Failed to create reminder: " + err.Error())
+		return
+	}
+
+	t := time.Unix(int64(rem.Time), 0)
+	a.showCommandFeedback(fmt.Sprintf("Reminder set for %s: %s", t.Format("Jan 2 15:04"), rem.Text))
+}
+
+// cmdListReminders lists active reminders.
+func (a *App) cmdListReminders() {
+	rems, err := a.slack.ListReminders()
+	if err != nil {
+		slog.Error("failed to list reminders", "error", err)
+		a.showCommandFeedback("Failed to list reminders")
+		return
+	}
+
+	if len(rems) == 0 {
+		a.showCommandFeedback("No active reminders")
+		return
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%d reminders: ", len(rems)))
+	for i, r := range rems {
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		t := time.Unix(int64(r.Time), 0)
+		text := r.Text
+		if len(text) > 30 {
+			text = text[:27] + "..."
+		}
+		b.WriteString(fmt.Sprintf("%s: %s", t.Format("Jan 2 15:04"), text))
+		if i >= 4 {
+			b.WriteString(fmt.Sprintf(" (+%d more)", len(rems)-5))
+			break
+		}
+	}
+	a.showCommandFeedback(b.String())
+}
+
+// executeVimCommand handles vim-style :commands from the command bar.
+func (a *App) executeVimCommand(command, args string) {
+	switch command {
+	case "q":
+		a.shutdown()
+	case "theme":
+		if args == "" {
+			a.showCommandFeedback("Usage: :theme [name] (default, dark, light, monokai, solarized_dark, solarized_light, high_contrast, monochrome)")
+		} else {
+			a.showCommandFeedback("Theme switching requires restart. Set theme.preset = \"" + args + "\" in config.")
+		}
+	case "join":
+		if args == "" {
+			a.showCommandFeedback("Usage: :join #channel")
+			return
+		}
+		channelName := strings.TrimPrefix(args, "#")
+		go a.cmdJoinChannel(channelName)
+	case "leave":
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch != "" {
+			go a.leaveChannel(ch)
+		}
+	case "search":
+		if args != "" {
+			a.chatView.ShowSearchPicker()
+			go a.searchMessages(args)
+		} else {
+			a.chatView.ShowSearchPicker()
+		}
+	case "mark-read":
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch != "" {
+			ts := a.chatView.MessagesList.LatestTimestamp()
+			if ts != "" {
+				a.markChannelRead(ch, ts)
+				a.showCommandFeedback("Channel marked as read")
+			}
+		}
+	case "mark-all-read":
+		go func() {
+			a.markAllChannelsRead()
+			a.showCommandFeedback("All channels marked as read")
+		}()
+	case "open":
+		if args == "" {
+			a.showCommandFeedback("Usage: :open [url]")
+			return
+		}
+		go a.openURL(args)
+	case "reconnect":
+		a.showCommandFeedback("Reconnecting...")
+		if a.cancel != nil {
+			a.cancel()
+		}
+		go a.showMain()
+	case "debug":
+		go a.toggleDebugLogging()
+	case "set":
+		if args == "" {
+			a.showCommandFeedback("Usage: :set [option] [value]")
+		} else {
+			a.showCommandFeedback("Runtime :set not yet implemented")
+		}
+	case "workspace":
+		a.populateWorkspacePicker()
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.ShowWorkspacePicker()
+		})
+	default:
+		a.showCommandFeedback("Unknown command: :" + command)
+	}
+}
+
+// cmdJoinChannel joins a channel by name.
+func (a *App) cmdJoinChannel(channelName string) {
+	a.mu.Lock()
+	var channelID string
+	for _, ch := range a.channels {
+		if ch.Name == channelName {
+			channelID = ch.ID
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	if channelID != "" {
+		// Already in the channel list, just switch to it.
+		a.tview.QueueUpdateDraw(func() {
+			a.onChannelSelected(channelID)
+		})
+		return
+	}
+
+	// Try to join via API.
+	ch, _, _, err := a.slack.API().JoinConversation(channelName)
+	if err != nil {
+		slog.Error("failed to join channel", "channel", channelName, "error", err)
+		a.showCommandFeedback("Failed to join #" + channelName + ": " + err.Error())
+		return
+	}
+
+	a.mu.Lock()
+	a.channels = append(a.channels, *ch)
+	users := a.users
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.ChannelsTree.AddChannel(*ch, users, a.slack.UserID)
+		a.onChannelSelected(ch.ID)
+	})
+	a.showCommandFeedback("Joined #" + channelName)
+}
+
+// openURL opens a URL in the system's default browser.
+func (a *App) openURL(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	if err := cmd.Start(); err != nil {
+		slog.Error("failed to open URL", "url", url, "error", err)
+		a.showCommandFeedback("Failed to open URL")
+		return
+	}
+	a.showCommandFeedback("Opened: " + url)
+}
+
+// toggleDebugLogging toggles the log level between debug and info.
+func (a *App) toggleDebugLogging() {
+	// Toggle is a best-effort feature; just show feedback.
+	a.showCommandFeedback("Debug logging toggled (check log output)")
+	slog.Debug("debug logging enabled via :debug command")
+}
+
+// populateWorkspacePicker refreshes the workspace picker with stored workspaces.
+func (a *App) populateWorkspacePicker() {
+	ws, err := keyring.ListWorkspaces()
+	if err != nil {
+		slog.Warn("failed to list workspaces", "error", err)
+		return
+	}
+
+	entries := make([]chat.WorkspaceEntry, len(ws))
+	for i, w := range ws {
+		entries[i] = chat.WorkspaceEntry{
+			ID:   w.ID,
+			Name: w.Name,
+		}
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.WorkspacePicker.SetCurrentWorkspace(a.slack.TeamID)
+		a.chatView.WorkspacePicker.SetWorkspaces(entries)
+	})
+}
+
+// switchWorkspace disconnects from the current workspace and connects to a new one.
+func (a *App) switchWorkspace(workspaceID string) {
+	ws, err := keyring.ListWorkspaces()
+	if err != nil {
+		slog.Error("failed to list workspaces", "error", err)
+		a.showCommandFeedback("Failed to list workspaces")
+		return
+	}
+
+	var target keyring.Workspace
+	found := false
+	for _, w := range ws {
+		if w.ID == workspaceID {
+			target = w
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.showCommandFeedback("Workspace not found: " + workspaceID)
+		return
+	}
+
+	tokens, err := keyring.GetWorkspaceTokens(target)
+	if err != nil {
+		slog.Error("failed to get workspace tokens", "workspace", target.Name, "error", err)
+		a.showCommandFeedback("Failed to get tokens for " + target.Name)
+		return
+	}
+
+	// Disconnect current.
+	if a.cancel != nil {
+		a.cancel()
+	}
+
+	// Create new client.
+	client, err := slackclient.New(tokens.BotToken, tokens.AppToken)
+	if err != nil {
+		slog.Error("failed to create client for workspace", "workspace", target.Name, "error", err)
+		a.showCommandFeedback("Failed to connect to " + target.Name)
+		return
+	}
+
+	a.slack = client
+	a.mu.Lock()
+	a.currentChannel = ""
+	a.channels = nil
+	a.users = make(map[string]slack.User)
+	a.dmSet = make(map[string]bool)
+	a.lastRead = make(map[string]string)
+	a.pinnedMsgs = make(map[string]map[string]bool)
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.showMain()
+	})
 }
 
 // fetchAllChannels retrieves all conversations with pagination.

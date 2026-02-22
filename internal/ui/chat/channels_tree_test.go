@@ -35,6 +35,11 @@ func TestClassifyChannel(t *testing.T) {
 			ch:   makeChannel("G1", "mpdm-group", false, false, true),
 			want: ChannelTypeGroupDM,
 		},
+		{
+			name: "shared channel (Slack Connect)",
+			ch:   makeSharedChannel("C5", "ext-partner"),
+			want: ChannelTypeShared,
+		},
 	}
 
 	for _, tt := range tests {
@@ -96,13 +101,19 @@ func TestChannelDisplayText(t *testing.T) {
 			chType: ChannelTypeDM,
 			want:   "○ U999",
 		},
+		{
+			name:   "shared channel",
+			ch:     makeSharedChannel("C5", "ext-partner"),
+			chType: ChannelTypeShared,
+			want:   "🔗 ext-partner",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := channelDisplayText(tt.ch, tt.chType, users, "SELF")
+			got := channelDisplayText(tt.ch, tt.chType, users, "SELF", false)
 			if got != tt.want {
-				t.Errorf("channelDisplayText() = %q, want %q", got, tt.want)
+				t.Errorf("channelDisplayText(false) = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -273,6 +284,15 @@ func makeChannel(id, name string, private, im, mpim bool) slack.Channel {
 	ch.IsPrivate = private
 	ch.IsIM = im
 	ch.IsMpIM = mpim
+	return ch
+}
+
+// makeSharedChannel creates a Slack Connect (externally shared) channel.
+func makeSharedChannel(id, name string) slack.Channel {
+	ch := slack.Channel{}
+	ch.ID = id
+	ch.Name = name
+	ch.IsExtShared = true
 	return ch
 }
 

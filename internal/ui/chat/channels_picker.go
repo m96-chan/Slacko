@@ -72,7 +72,7 @@ func (cp *ChannelsPicker) SetData(channels []slack.Channel, users map[string]sla
 
 	for _, ch := range channels {
 		chType := classifyChannel(ch)
-		display := channelDisplayText(ch, chType, users, selfUserID)
+		display := channelDisplayText(ch, chType, users, selfUserID, cp.cfg.AsciiIcons)
 		search := pickerSearchText(ch, chType, users)
 
 		cp.entries = append(cp.entries, pickerEntry{

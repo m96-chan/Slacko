@@ -18,6 +18,7 @@ const (
 	acNone autocompleteKind = iota
 	acUser
 	acChannel
+	acCommand
 )
 
 // suggestion holds a single autocomplete result.
@@ -42,12 +43,21 @@ type channelEntry struct {
 	insertText  string // e.g. "<#C123> "
 }
 
+// commandEntry holds precomputed data for a command suggestion.
+type commandEntry struct {
+	name        string // e.g. "/help"
+	description string // e.g. "Show available commands"
+	searchText  string // lowercased for fuzzy matching
+	insertText  string // e.g. "/help "
+}
+
 // MentionsList displays autocomplete suggestions in a dropdown.
 type MentionsList struct {
 	*tview.List
 	cfg         *config.Config
 	users       []userEntry
 	channels    []channelEntry
+	commands    []commandEntry
 	suggestions []suggestion
 }
 
@@ -112,7 +122,7 @@ func (ml *MentionsList) SetChannels(channels []slack.Channel, users map[string]s
 
 	for _, ch := range channels {
 		chType := classifyChannel(ch)
-		display := channelDisplayText(ch, chType, users, selfUserID)
+		display := channelDisplayText(ch, chType, users, selfUserID, ml.cfg.AsciiIcons)
 		search := pickerSearchText(ch, chType, users)
 
 		ml.channels = append(ml.channels, channelEntry{
@@ -122,6 +132,11 @@ func (ml *MentionsList) SetChannels(channels []slack.Channel, users map[string]s
 			insertText:  fmt.Sprintf("<#%s> ", ch.ID),
 		})
 	}
+}
+
+// SetCommands sets the available slash commands for autocomplete.
+func (ml *MentionsList) SetCommands(cmds []commandEntry) {
+	ml.commands = cmds
 }
 
 // Filter runs fuzzy matching for the given trigger kind and prefix.
@@ -135,6 +150,8 @@ func (ml *MentionsList) Filter(kind autocompleteKind, prefix string, limit int) 
 		return ml.filterUsers(prefix, limit)
 	case acChannel:
 		return ml.filterChannels(prefix, limit)
+	case acCommand:
+		return ml.filterCommands(prefix, limit)
 	}
 
 	return 0
@@ -264,11 +281,72 @@ func (ml *MentionsList) filterChannels(prefix string, limit int) int {
 	return count
 }
 
+// filterCommands runs fuzzy matching against command entries.
+func (ml *MentionsList) filterCommands(prefix string, limit int) int {
+	if prefix == "" {
+		count := len(ml.commands)
+		if count > limit {
+			count = limit
+		}
+		for i := 0; i < count; i++ {
+			cmd := ml.commands[i]
+			display := fmt.Sprintf("%s — %s", cmd.name, cmd.description)
+			ml.suggestions = append(ml.suggestions, suggestion{
+				display:    display,
+				insertText: cmd.insertText,
+			})
+			ml.AddItem(display, "", 0, nil)
+		}
+		if count > 0 {
+			ml.SetCurrentItem(0)
+		}
+		return count
+	}
+
+	targets := make([]string, len(ml.commands))
+	for i, cmd := range ml.commands {
+		targets[i] = cmd.searchText
+	}
+
+	matches := fuzzy.Find(prefix, targets)
+
+	count := len(matches)
+	if count > limit {
+		count = limit
+	}
+
+	for i := 0; i < count; i++ {
+		cmd := ml.commands[matches[i].Index]
+		display := fmt.Sprintf("%s — %s", cmd.name, cmd.description)
+		ml.suggestions = append(ml.suggestions, suggestion{
+			display:    display,
+			insertText: cmd.insertText,
+		})
+		ml.AddItem(display, "", 0, nil)
+	}
+
+	if count > 0 {
+		ml.SetCurrentItem(0)
+	}
+
+	return count
+}
+
 // findAutocompleteTrigger scans text backwards from the end to find
-// an autocomplete trigger (@, #). Returns the trigger kind, the prefix
+// an autocomplete trigger (@, #, /). Returns the trigger kind, the prefix
 // after the trigger, and the byte offset of the trigger character.
 func findAutocompleteTrigger(text string) (autocompleteKind, string, int) {
 	if text == "" {
+		return acNone, "", -1
+	}
+
+	// Check for slash command: "/" must be at position 0.
+	if text[0] == '/' {
+		// Only trigger if no space yet (user is still typing the command name).
+		prefix := text[1:]
+		if !strings.Contains(prefix, " ") {
+			return acCommand, prefix, 0
+		}
 		return acNone, "", -1
 	}
 

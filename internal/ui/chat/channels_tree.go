@@ -22,6 +22,7 @@ const (
 	ChannelTypePrivate
 	ChannelTypeDM
 	ChannelTypeGroupDM
+	ChannelTypeShared // Slack Connect (externally shared)
 )
 
 // nodeRef stores metadata for a tree node, used as tview.TreeNode.Reference.
@@ -70,12 +71,13 @@ func NewChannelsTree(cfg *config.Config, onSelected OnChannelSelectedFunc) *Chan
 	ct.sections = map[ChannelType]*tview.TreeNode{
 		ChannelTypePublic:  tview.NewTreeNode("Starred"),
 		ChannelTypePrivate: tview.NewTreeNode("Channels"),
+		ChannelTypeShared:  tview.NewTreeNode("Slack Connect"),
 		ChannelTypeDM:      tview.NewTreeNode("Direct Messages"),
 		ChannelTypeGroupDM: tview.NewTreeNode("Group DMs"),
 	}
 
 	// Add sections in display order.
-	for _, ct2 := range []ChannelType{ChannelTypePublic, ChannelTypePrivate, ChannelTypeDM, ChannelTypeGroupDM} {
+	for _, ct2 := range []ChannelType{ChannelTypePublic, ChannelTypePrivate, ChannelTypeShared, ChannelTypeDM, ChannelTypeGroupDM} {
 		node := ct.sections[ct2]
 		node.SetSelectable(true)
 		node.SetExpanded(true)
@@ -295,7 +297,7 @@ func (ct *ChannelsTree) handleInput(event *tcell.EventKey) *tcell.EventKey {
 // addChannelNode creates a node for a channel and adds it to the correct section.
 func (ct *ChannelsTree) addChannelNode(ch slack.Channel, users map[string]slack.User, selfUserID string) {
 	chType := classifyChannel(ch)
-	text := channelDisplayText(ch, chType, users, selfUserID)
+	text := channelDisplayText(ch, chType, users, selfUserID, ct.cfg.AsciiIcons)
 
 	node := tview.NewTreeNode(text)
 	node.SetReference(&nodeRef{
@@ -312,6 +314,8 @@ func (ct *ChannelsTree) addChannelNode(ch slack.Channel, users map[string]slack.
 	switch chType {
 	case ChannelTypePublic, ChannelTypePrivate:
 		section = ct.sections[ChannelTypePrivate] // "Channels" section
+	case ChannelTypeShared:
+		section = ct.sections[ChannelTypeShared] // "Slack Connect" section
 	case ChannelTypeDM:
 		section = ct.sections[ChannelTypeDM]
 	case ChannelTypeGroupDM:
@@ -325,7 +329,7 @@ func (ct *ChannelsTree) addChannelNode(ch slack.Channel, users map[string]slack.
 
 // setInitialSelection sets the current node to the first channel node.
 func (ct *ChannelsTree) setInitialSelection() {
-	for _, ct2 := range []ChannelType{ChannelTypePrivate, ChannelTypeDM, ChannelTypeGroupDM} {
+	for _, ct2 := range []ChannelType{ChannelTypePrivate, ChannelTypeShared, ChannelTypeDM, ChannelTypeGroupDM} {
 		section := ct.sections[ct2]
 		if children := section.GetChildren(); len(children) > 0 {
 			ct.SetCurrentNode(children[0])
@@ -342,6 +346,10 @@ func classifyChannel(ch slack.Channel) ChannelType {
 	if ch.IsMpIM {
 		return ChannelTypeGroupDM
 	}
+	// Slack Connect: externally shared channels.
+	if ch.IsExtShared {
+		return ChannelTypeShared
+	}
 	if ch.IsPrivate {
 		return ChannelTypePrivate
 	}
@@ -349,25 +357,42 @@ func classifyChannel(ch slack.Channel) ChannelType {
 }
 
 // channelDisplayText returns the display text for a channel node.
-func channelDisplayText(ch slack.Channel, chType ChannelType, users map[string]slack.User, selfUserID string) string {
+func channelDisplayText(ch slack.Channel, chType ChannelType, users map[string]slack.User, selfUserID string, asciiIcons bool) string {
+	pIcon := presenceIcon
+	if asciiIcons {
+		pIcon = presenceIconASCII
+	}
 	switch chType {
 	case ChannelTypeDM:
 		user, ok := users[ch.User]
 		if !ok {
-			return fmt.Sprintf("%s %s", presenceIcon(""), ch.User)
+			return fmt.Sprintf("%s %s", pIcon(""), ch.User)
 		}
-		return fmt.Sprintf("%s %s", presenceIcon(user.Presence), dmDisplayName(user))
+		return fmt.Sprintf("%s %s", pIcon(user.Presence), dmDisplayName(user))
 	case ChannelTypeGroupDM:
+		groupIcon := "\U0001F465" // 👥
+		if asciiIcons {
+			groupIcon = "++"
+		}
 		if ch.Purpose.Value != "" {
-			return fmt.Sprintf("👥 %s", ch.Purpose.Value)
+			return fmt.Sprintf("%s %s", groupIcon, ch.Purpose.Value)
 		}
-		// Build name from members list or fall back to channel name.
 		if ch.Name != "" {
-			return fmt.Sprintf("👥 %s", ch.Name)
+			return fmt.Sprintf("%s %s", groupIcon, ch.Name)
 		}
-		return "👥 Group DM"
+		return fmt.Sprintf("%s Group DM", groupIcon)
+	case ChannelTypeShared:
+		linkIcon := "\U0001F517" // 🔗
+		if asciiIcons {
+			linkIcon = "<>"
+		}
+		return fmt.Sprintf("%s %s", linkIcon, ch.Name)
 	case ChannelTypePrivate:
-		return fmt.Sprintf("🔒 %s", ch.Name)
+		lockIcon := "\U0001F512" // 🔒
+		if asciiIcons {
+			lockIcon = "@"
+		}
+		return fmt.Sprintf("%s %s", lockIcon, ch.Name)
 	default: // Public
 		return fmt.Sprintf("# %s", ch.Name)
 	}
@@ -382,6 +407,18 @@ func presenceIcon(presence string) string {
 		return "◐"
 	default:
 		return "○"
+	}
+}
+
+// presenceIconASCII returns an ASCII presence indicator.
+func presenceIconASCII(presence string) string {
+	switch presence {
+	case "active":
+		return "*"
+	case "away":
+		return "~"
+	default:
+		return "o"
 	}
 }
 

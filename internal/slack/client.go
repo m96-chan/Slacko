@@ -298,3 +298,117 @@ func (c *Client) LeaveConversation(channelID string) (bool, error) {
 	})
 	return notInChannel, err
 }
+
+// AddStar stars an item.
+func (c *Client) AddStar(channel string, item slack.ItemRef) error {
+	return retryOnRateLimit(func() error {
+		return c.api.AddStar(channel, item)
+	})
+}
+
+// RemoveStar removes a star from an item.
+func (c *Client) RemoveStar(channel string, item slack.ItemRef) error {
+	return retryOnRateLimit(func() error {
+		return c.api.RemoveStar(channel, item)
+	})
+}
+
+// ListAllStars returns all starred items for the current user.
+func (c *Client) ListAllStars() ([]slack.Item, error) {
+	var items []slack.Item
+	err := retryOnRateLimit(func() error {
+		var e error
+		items, e = c.api.ListAllStars()
+		return e
+	})
+	return items, err
+}
+
+// SetUserCustomStatus sets the authenticated user's status emoji and text.
+func (c *Client) SetUserCustomStatus(statusText, statusEmoji string) error {
+	return retryOnRateLimit(func() error {
+		return c.api.SetUserCustomStatus(statusText, statusEmoji, 0)
+	})
+}
+
+// GetUsersInConversation returns user IDs in a channel with pagination.
+func (c *Client) GetUsersInConversation(channelID, cursor string, limit int) ([]string, string, error) {
+	var userIDs []string
+	var nextCursor string
+	err := retryOnRateLimit(func() error {
+		var e error
+		userIDs, nextCursor, e = c.api.GetUsersInConversation(&slack.GetUsersInConversationParameters{
+			ChannelID: channelID,
+			Cursor:    cursor,
+			Limit:     limit,
+		})
+		return e
+	})
+	return userIDs, nextCursor, err
+}
+
+// ScheduleMessage schedules a message for future delivery.
+// postAt is a Unix timestamp string for when to send the message.
+func (c *Client) ScheduleMessage(channelID, postAt, text string) (string, string, error) {
+	var respChannel, scheduledID string
+	err := retryOnRateLimit(func() error {
+		var e error
+		respChannel, scheduledID, e = c.api.ScheduleMessage(channelID, postAt,
+			slack.MsgOptionText(text, false))
+		return e
+	})
+	return respChannel, scheduledID, err
+}
+
+// GetScheduledMessages returns scheduled messages, optionally filtered by channel.
+func (c *Client) GetScheduledMessages(channelID string) ([]slack.ScheduledMessage, error) {
+	var msgs []slack.ScheduledMessage
+	err := retryOnRateLimit(func() error {
+		var e error
+		msgs, _, e = c.api.GetScheduledMessages(&slack.GetScheduledMessagesParameters{
+			Channel: channelID,
+		})
+		return e
+	})
+	return msgs, err
+}
+
+// DeleteScheduledMessage cancels a scheduled message.
+func (c *Client) DeleteScheduledMessage(channelID, scheduledMessageID string) error {
+	return retryOnRateLimit(func() error {
+		_, err := c.api.DeleteScheduledMessage(&slack.DeleteScheduledMessageParameters{
+			Channel:            channelID,
+			ScheduledMessageID: scheduledMessageID,
+		})
+		return err
+	})
+}
+
+// AddReminder creates a reminder for the current user.
+func (c *Client) AddReminder(text, timeStr string) (*slack.Reminder, error) {
+	var rem *slack.Reminder
+	err := retryOnRateLimit(func() error {
+		var e error
+		rem, e = c.api.AddUserReminder(c.UserID, text, timeStr)
+		return e
+	})
+	return rem, err
+}
+
+// ListReminders returns all active reminders.
+func (c *Client) ListReminders() ([]*slack.Reminder, error) {
+	var rems []*slack.Reminder
+	err := retryOnRateLimit(func() error {
+		var e error
+		rems, e = c.api.ListReminders()
+		return e
+	})
+	return rems, err
+}
+
+// DeleteReminder deletes a reminder by ID.
+func (c *Client) DeleteReminder(id string) error {
+	return retryOnRateLimit(func() error {
+		return c.api.DeleteReminder(id)
+	})
+}

@@ -74,6 +74,11 @@ func (f *Form) submit() {
 		slog.Warn("failed to store app token in keyring", "error", err)
 	}
 
+	// Register in multi-workspace registry.
+	if err := keyring.AddWorkspace(client.TeamID, client.TeamName, bot, app); err != nil {
+		slog.Warn("failed to register workspace", "error", err)
+	}
+
 	f.done(client)
 }
 

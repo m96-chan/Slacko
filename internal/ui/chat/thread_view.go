@@ -32,6 +32,7 @@ type ThreadView struct {
 	messages     []slack.Message // first is parent, rest are replies
 	users        map[string]slack.User
 	channelNames map[string]string // channelID → name
+	selfTeamID   string
 	selectedIdx  int
 	inputFocused bool
 	onSend       OnThreadReplyFunc
@@ -73,6 +74,11 @@ func NewThreadView(app *tview.Application, cfg *config.Config) *ThreadView {
 // SetChannelNames sets the channel ID → name map for mention rendering.
 func (tv *ThreadView) SetChannelNames(names map[string]string) {
 	tv.channelNames = names
+}
+
+// SetSelfTeamID sets the team ID for external user detection.
+func (tv *ThreadView) SetSelfTeamID(id string) {
+	tv.selfTeamID = id
 }
 
 // SetOnSend sets the callback for sending thread replies.
@@ -194,7 +200,7 @@ func (tv *ThreadView) render() {
 		fmt.Fprintf(&b, `["%s"]`, tview.Escape(msg.Timestamp))
 
 		// Author line.
-		userName := resolveUserName(msg.User, msg.Username, msg.BotID, tv.users)
+		userName := resolveUserName(msg.User, msg.Username, msg.BotID, tv.users, tv.selfTeamID)
 		// Build presence prefix and status suffix.
 		presencePrefix := ""
 		if tv.cfg.Presence.Enabled {
@@ -240,9 +246,18 @@ func (tv *ThreadView) render() {
 
 		// File attachments.
 		for _, f := range msg.Files {
-			icon := fileIcon(f.Name)
+			icon := fileIcon(f.Name, tv.cfg.AsciiIcons)
 			fmt.Fprintf(&b, "  %s%s %s (%s)%s\n",
 				theme.FileAttachment.Tag(), icon, tview.Escape(f.Name), formatFileSize(f.Size), theme.FileAttachment.Reset())
+		}
+
+		// Link previews / rich attachments.
+		if len(msg.Attachments) > 0 {
+			b.WriteString(formatAttachments(msg.Attachments, attachmentStyles{
+				Title:  theme.AttachmentTitle,
+				Text:   theme.AttachmentText,
+				Footer: theme.AttachmentFooter,
+			}, tv.cfg.ShowAttachmentLinks))
 		}
 
 		// Reactions.

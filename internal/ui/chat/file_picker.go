@@ -148,14 +148,18 @@ func (fp *FilePicker) loadDir(path string) {
 // rebuildList updates the tview.List from entries.
 func (fp *FilePicker) rebuildList() {
 	fp.list.Clear()
+	dirIcon := "\U0001F4C1"
+	if fp.cfg.AsciiIcons {
+		dirIcon = "[D]"
+	}
 	for _, e := range fp.entries {
 		var display string
 		if e.name == ".." {
-			display = "  \U0001F4C1 .."
+			display = fmt.Sprintf("  %s ..", dirIcon)
 		} else if e.isDir {
-			display = fmt.Sprintf("  \U0001F4C1 %s/", e.name)
+			display = fmt.Sprintf("  %s %s/", dirIcon, e.name)
 		} else {
-			icon := fileIcon(e.name)
+			icon := fileIcon(e.name, fp.cfg.AsciiIcons)
 			display = fmt.Sprintf("  %s %s  (%s)", icon, e.name, formatFileSize(int(e.size)))
 		}
 		fp.list.AddItem(display, "", 0, nil)
@@ -238,7 +242,10 @@ func (fp *FilePicker) close() {
 }
 
 // fileIcon returns a type-specific icon for a file based on its extension.
-func fileIcon(name string) string {
+func fileIcon(name string, asciiIcons bool) string {
+	if asciiIcons {
+		return "[F]"
+	}
 	ext := strings.ToLower(filepath.Ext(name))
 	switch ext {
 	case ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico", ".tiff":

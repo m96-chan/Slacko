@@ -103,7 +103,7 @@ func TestBuiltinTheme_UnknownFallsBackToDefault(t *testing.T) {
 }
 
 func TestBuiltinTheme_AllPresetsPopulated(t *testing.T) {
-	presets := []string{"default", "dark", "light", "monokai", "solarized_dark", "solarized_light"}
+	presets := []string{"default", "dark", "light", "monokai", "solarized_dark", "solarized_light", "high_contrast", "monochrome"}
 	for _, name := range presets {
 		t.Run(name, func(t *testing.T) {
 			theme := BuiltinTheme(name)

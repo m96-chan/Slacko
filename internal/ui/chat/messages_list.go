@@ -35,11 +35,17 @@ type OnFileOpenRequestFunc func(channelID string, file slack.File)
 // OnPinRequestFunc is called when the user wants to pin or unpin a message.
 type OnPinRequestFunc func(channelID, timestamp string, pinned bool)
 
+// OnStarRequestFunc is called when the user wants to star or unstar a message.
+type OnStarRequestFunc func(channelID, timestamp string, starred bool)
+
 // OnYankFunc is called when the user wants to copy message text.
 type OnYankFunc func(text string)
 
 // OnCopyPermalinkFunc is called when the user wants to copy a message permalink.
 type OnCopyPermalinkFunc func(channelID, timestamp string)
+
+// OnUserProfileRequestFunc is called when the user wants to view a user's profile.
+type OnUserProfileRequestFunc func(userID string)
 
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
@@ -50,9 +56,11 @@ type MessagesList struct {
 	users                  map[string]slack.User
 	channelNames           map[string]string        // channelID → name
 	pinnedSet              map[string]bool           // set of pinned message timestamps
+	starredSet             map[string]bool           // set of starred message timestamps
 	selectedIdx            int                      // -1 = no selection
 	channelID              string
 	selfUserID             string
+	selfTeamID             string
 	onReplyRequest         OnReplyRequestFunc
 	onEditRequest          OnEditRequestFunc
 	onThreadRequest        OnThreadRequestFunc
@@ -60,8 +68,10 @@ type MessagesList struct {
 	onReactionRemoveRequest OnReactionRemoveRequestFunc
 	onFileOpenRequest      OnFileOpenRequestFunc
 	onPinRequest           OnPinRequestFunc
+	onStarRequest          OnStarRequestFunc
 	onYank                 OnYankFunc
 	onCopyPermalink        OnCopyPermalinkFunc
+	onUserProfileRequest   OnUserProfileRequestFunc
 	lastReadTS             string // last-read timestamp for "New messages" separator
 }
 
@@ -74,6 +84,7 @@ func NewMessagesList(cfg *config.Config) *MessagesList {
 		users:        make(map[string]slack.User),
 		channelNames: make(map[string]string),
 		pinnedSet:    make(map[string]bool),
+		starredSet:   make(map[string]bool),
 		mdColors:     mdColorsFromTheme(cfg.Theme.Markdown),
 	}
 
@@ -110,6 +121,11 @@ func mdColorsFromTheme(m config.MarkdownTheme) markdown.MarkdownColors {
 // SetSelfUserID sets the current user's ID for edit permission checks.
 func (ml *MessagesList) SetSelfUserID(id string) {
 	ml.selfUserID = id
+}
+
+// SetSelfTeamID sets the authenticated user's team ID for external user detection.
+func (ml *MessagesList) SetSelfTeamID(id string) {
+	ml.selfTeamID = id
 }
 
 // SetChannelNames sets the channel ID → name map for mention rendering.
@@ -152,6 +168,11 @@ func (ml *MessagesList) SetOnPinRequest(fn OnPinRequestFunc) {
 	ml.onPinRequest = fn
 }
 
+// SetOnStarRequest sets the callback for star/unstar requests.
+func (ml *MessagesList) SetOnStarRequest(fn OnStarRequestFunc) {
+	ml.onStarRequest = fn
+}
+
 // SetOnYank sets the callback for yanking (copying) message text.
 func (ml *MessagesList) SetOnYank(fn OnYankFunc) {
 	ml.onYank = fn
@@ -160,6 +181,11 @@ func (ml *MessagesList) SetOnYank(fn OnYankFunc) {
 // SetOnCopyPermalink sets the callback for copying a message permalink.
 func (ml *MessagesList) SetOnCopyPermalink(fn OnCopyPermalinkFunc) {
 	ml.onCopyPermalink = fn
+}
+
+// SetOnUserProfileRequest sets the callback for viewing a user's profile.
+func (ml *MessagesList) SetOnUserProfileRequest(fn OnUserProfileRequestFunc) {
+	ml.onUserProfileRequest = fn
 }
 
 // SetPinnedMessages sets the full set of pinned message timestamps for the current channel.
@@ -177,6 +203,25 @@ func (ml *MessagesList) SetPinned(timestamp string, pinned bool) {
 		ml.pinnedSet[timestamp] = true
 	} else {
 		delete(ml.pinnedSet, timestamp)
+	}
+	ml.render()
+}
+
+// SetStarredMessages sets the full set of starred message timestamps for the current channel.
+func (ml *MessagesList) SetStarredMessages(timestamps []string) {
+	ml.starredSet = make(map[string]bool, len(timestamps))
+	for _, ts := range timestamps {
+		ml.starredSet[ts] = true
+	}
+	ml.render()
+}
+
+// SetStarred updates the starred state of a single message.
+func (ml *MessagesList) SetStarred(timestamp string, starred bool) {
+	if starred {
+		ml.starredSet[timestamp] = true
+	} else {
+		delete(ml.starredSet, timestamp)
 	}
 	ml.render()
 }
@@ -215,6 +260,7 @@ func (ml *MessagesList) SetMessages(channelID string, messages []slack.Message, 
 	ml.users = users
 	ml.selectedIdx = -1
 	ml.pinnedSet = make(map[string]bool)
+	ml.starredSet = make(map[string]bool)
 
 	// History returns newest-first; reverse to oldest-first.
 	ml.messages = make([]slack.Message, len(messages))
@@ -405,7 +451,7 @@ func (ml *MessagesList) render() {
 				timeStr := t.Format(ml.cfg.Timestamps.Format)
 				fmt.Fprintf(&b, "%s%s%s ", theme.Timestamp.Tag(), timeStr, theme.Timestamp.Reset())
 			}
-			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users)
+			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users, ml.selfTeamID)
 			// Presence icon before author name.
 			if ml.cfg.Presence.Enabled {
 				if u, ok := ml.users[msg.User]; ok {
@@ -444,14 +490,36 @@ func (ml *MessagesList) render() {
 
 		// Pin indicator.
 		if ml.pinnedSet[msg.Timestamp] {
-			fmt.Fprintf(&b, "  %s\U0001F4CC pinned%s\n", theme.PinIndicator.Tag(), theme.PinIndicator.Reset())
+			pinIcon := "\U0001F4CC"
+			if ml.cfg.AsciiIcons {
+				pinIcon = "[PIN]"
+			}
+			fmt.Fprintf(&b, "  %s%s pinned%s\n", theme.PinIndicator.Tag(), pinIcon, theme.PinIndicator.Reset())
+		}
+
+		// Star indicator.
+		if ml.starredSet[msg.Timestamp] {
+			starIcon := "\u2B50"
+			if ml.cfg.AsciiIcons {
+				starIcon = "[STAR]"
+			}
+			fmt.Fprintf(&b, "  %s%s starred%s\n", theme.PinIndicator.Tag(), starIcon, theme.PinIndicator.Reset())
 		}
 
 		// File attachments.
 		for _, f := range msg.Files {
-			icon := fileIcon(f.Name)
+			icon := fileIcon(f.Name, ml.cfg.AsciiIcons)
 			fmt.Fprintf(&b, "  %s%s %s (%s)%s\n",
 				theme.FileAttachment.Tag(), icon, tview.Escape(f.Name), formatFileSize(f.Size), theme.FileAttachment.Reset())
+		}
+
+		// Link previews / rich attachments.
+		if len(msg.Attachments) > 0 {
+			b.WriteString(formatAttachments(msg.Attachments, attachmentStyles{
+				Title:  theme.AttachmentTitle,
+				Text:   theme.AttachmentText,
+				Footer: theme.AttachmentFooter,
+			}, ml.cfg.ShowAttachmentLinks))
 		}
 
 		// Reactions.
@@ -519,7 +587,7 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 	case ml.cfg.Keybinds.MessagesList.Reply:
 		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onReplyRequest != nil {
 			msg := ml.messages[ml.selectedIdx]
-			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users)
+			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users, ml.selfTeamID)
 			// Use the message's own timestamp as the thread parent.
 			threadTS := msg.Timestamp
 			if msg.ThreadTimestamp != "" {
@@ -584,6 +652,13 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 
+	case ml.cfg.Keybinds.MessagesList.Star:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onStarRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			ml.onStarRequest(ml.channelID, msg.Timestamp, !ml.starredSet[msg.Timestamp])
+			return nil
+		}
+
 	case ml.cfg.Keybinds.MessagesList.Yank:
 		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onYank != nil {
 			ml.onYank(ml.messages[ml.selectedIdx].Text)
@@ -595,6 +670,15 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			msg := ml.messages[ml.selectedIdx]
 			ml.onCopyPermalink(ml.channelID, msg.Timestamp)
 			return nil
+		}
+
+	case ml.cfg.Keybinds.MessagesList.UserProfile:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onUserProfileRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			if msg.User != "" {
+				ml.onUserProfileRequest(msg.User)
+				return nil
+			}
 		}
 	}
 
@@ -671,19 +755,24 @@ func formatNewMessagesSeparator(char string, style config.StyleWrapper) string {
 }
 
 // resolveUserName returns the best display name for a message author.
-func resolveUserName(userID, username, botID string, users map[string]slack.User) string {
+// If selfTeamID is non-empty and the user belongs to a different team, appends " [ext]".
+func resolveUserName(userID, username, botID string, users map[string]slack.User, selfTeamID string) string {
 	if userID != "" {
 		if u, ok := users[userID]; ok {
-			if u.Profile.DisplayName != "" {
-				return u.Profile.DisplayName
+			name := u.Profile.DisplayName
+			if name == "" {
+				name = u.RealName
 			}
-			if u.RealName != "" {
-				return u.RealName
+			if name == "" {
+				name = u.Name
 			}
-			if u.Name != "" {
-				return u.Name
+			if name == "" {
+				name = userID
 			}
-			return userID
+			if selfTeamID != "" && u.TeamID != "" && u.TeamID != selfTeamID {
+				name += " [ext]"
+			}
+			return name
 		}
 	}
 
@@ -703,7 +792,7 @@ func resolveUserName(userID, username, botID string, users map[string]slack.User
 // systemMessageText returns display text for system message subtypes.
 // Returns empty string for regular messages.
 func systemMessageText(msg slack.Message, users map[string]slack.User) string {
-	userName := resolveUserName(msg.User, msg.Username, "", users)
+	userName := resolveUserName(msg.User, msg.Username, "", users, "")
 	switch msg.SubType {
 	case "channel_join", "group_join":
 		return fmt.Sprintf("%s joined the channel", userName)
@@ -734,6 +823,87 @@ func containsStr(ss []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// attachmentStyles groups the three theme styles used for rendering attachments.
+type attachmentStyles struct {
+	Title  config.StyleWrapper
+	Text   config.StyleWrapper
+	Footer config.StyleWrapper
+}
+
+// maxAttachmentTextLen is the maximum length for attachment body text before truncation.
+const maxAttachmentTextLen = 300
+
+// formatAttachments renders Slack message attachments (link previews, bot cards, etc.)
+// into tview-formatted lines. Each line is indented with two spaces and a vertical bar.
+func formatAttachments(attachments []slack.Attachment, styles attachmentStyles, showLinks bool) string {
+	if len(attachments) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, att := range attachments {
+		// Skip empty attachments.
+		if att.Title == "" && att.Text == "" && att.Fallback == "" && att.Pretext == "" {
+			continue
+		}
+
+		// Pretext appears above the attachment block.
+		if att.Pretext != "" {
+			fmt.Fprintf(&b, "  %s\n", tview.Escape(att.Pretext))
+		}
+
+		// Author line.
+		if att.AuthorName != "" {
+			fmt.Fprintf(&b, "  │ %s%s%s\n", styles.Footer.Tag(), tview.Escape(att.AuthorName), styles.Footer.Reset())
+		}
+
+		// Title line.
+		if att.Title != "" {
+			fmt.Fprintf(&b, "  │ %s%s%s\n", styles.Title.Tag(), tview.Escape(att.Title), styles.Title.Reset())
+		}
+
+		// Body text (truncated).
+		if att.Text != "" {
+			text := att.Text
+			if len(text) > maxAttachmentTextLen {
+				text = text[:maxAttachmentTextLen] + "…"
+			}
+			for _, line := range strings.Split(text, "\n") {
+				fmt.Fprintf(&b, "  │ %s%s%s\n", styles.Text.Tag(), tview.Escape(line), styles.Text.Reset())
+			}
+		}
+
+		// Fields (key/value pairs often used by bot attachments).
+		for _, field := range att.Fields {
+			fmt.Fprintf(&b, "  │ %s%s:%s %s\n",
+				styles.Title.Tag(), tview.Escape(field.Title), styles.Title.Reset(),
+				tview.Escape(fmt.Sprintf("%v", field.Value)))
+		}
+
+		// Image info.
+		if att.ImageURL != "" {
+			dims := ""
+			if att.ImageWidth > 0 && att.ImageHeight > 0 {
+				dims = fmt.Sprintf(" (%dx%d)", att.ImageWidth, att.ImageHeight)
+			}
+			fmt.Fprintf(&b, "  │ %s[image%s]%s\n", styles.Footer.Tag(), dims, styles.Footer.Reset())
+		}
+
+		// Footer / service name.
+		footer := att.Footer
+		if footer == "" {
+			footer = att.ServiceName
+		}
+		if footer == "" && showLinks && att.FromURL != "" {
+			footer = att.FromURL
+		}
+		if footer != "" {
+			fmt.Fprintf(&b, "  │ %s%s%s\n", styles.Footer.Tag(), tview.Escape(footer), styles.Footer.Reset())
+		}
+	}
+	return b.String()
 }
 
 // formatFileSize formats a byte count as a human-readable string.

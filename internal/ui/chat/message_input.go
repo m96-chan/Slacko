@@ -29,6 +29,9 @@ type OnSendFunc func(channelID, text, threadTS string)
 // OnEditFunc is called when the user submits an edited message.
 type OnEditFunc func(channelID, timestamp, text string)
 
+// OnSlashCommandFunc is called when the user sends a slash command.
+type OnSlashCommandFunc func(channelID, command, args string)
+
 // MessageInput wraps tview.TextArea with send/reply/edit support.
 type MessageInput struct {
 	*tview.TextArea
@@ -37,9 +40,10 @@ type MessageInput struct {
 	mode      InputMode
 	threadTS  string // set in reply mode
 	editTS    string // set in edit mode
-	onSend    OnSendFunc
-	onEdit    OnEditFunc
-	onCancel  func() // called when user cancels reply/edit
+	onSend         OnSendFunc
+	onEdit         OnEditFunc
+	onSlashCommand OnSlashCommandFunc
+	onCancel       func() // called when user cancels reply/edit
 
 	// Autocomplete state.
 	mentionsList       *MentionsList
@@ -84,6 +88,11 @@ func (mi *MessageInput) SetOnSend(fn OnSendFunc) {
 // SetOnEdit sets the callback for editing messages.
 func (mi *MessageInput) SetOnEdit(fn OnEditFunc) {
 	mi.onEdit = fn
+}
+
+// SetOnSlashCommand sets the callback for handling slash commands.
+func (mi *MessageInput) SetOnSlashCommand(fn OnSlashCommandFunc) {
+	mi.onSlashCommand = fn
 }
 
 // SetOnCancel sets the callback for cancelling reply/edit mode.
@@ -221,6 +230,16 @@ func (mi *MessageInput) send() {
 	}
 	if mi.channelID == "" {
 		return
+	}
+
+	// Intercept slash commands in normal mode.
+	if mi.mode == InputModeNormal {
+		cmd, args := ParseSlashCommand(text)
+		if cmd != "" && mi.onSlashCommand != nil {
+			mi.onSlashCommand(mi.channelID, cmd, args)
+			mi.SetText("", false)
+			return
+		}
 	}
 
 	switch mi.mode {

@@ -244,19 +244,22 @@ type ChannelsTreeTheme struct {
 
 // MessagesListTheme configures the messages list styling.
 type MessagesListTheme struct {
-	Message         StyleWrapper `toml:"message"`
-	Author          StyleWrapper `toml:"author"`
-	Timestamp       StyleWrapper `toml:"timestamp"`
-	Selected        StyleWrapper `toml:"selected"`
-	Reply           StyleWrapper `toml:"reply"`
-	SystemMessage   StyleWrapper `toml:"system_message"`
-	EditedIndicator StyleWrapper `toml:"edited_indicator"`
-	PinIndicator    StyleWrapper `toml:"pin_indicator"`
-	FileAttachment  StyleWrapper `toml:"file_attachment"`
-	ReactionSelf    StyleWrapper `toml:"reaction_self"`
-	ReactionOther   StyleWrapper `toml:"reaction_other"`
-	DateSeparator   StyleWrapper `toml:"date_separator"`
-	NewMsgSeparator StyleWrapper `toml:"new_msg_separator"`
+	Message          StyleWrapper `toml:"message"`
+	Author           StyleWrapper `toml:"author"`
+	Timestamp        StyleWrapper `toml:"timestamp"`
+	Selected         StyleWrapper `toml:"selected"`
+	Reply            StyleWrapper `toml:"reply"`
+	SystemMessage    StyleWrapper `toml:"system_message"`
+	EditedIndicator  StyleWrapper `toml:"edited_indicator"`
+	PinIndicator     StyleWrapper `toml:"pin_indicator"`
+	FileAttachment   StyleWrapper `toml:"file_attachment"`
+	AttachmentTitle  StyleWrapper `toml:"attachment_title"`
+	AttachmentText   StyleWrapper `toml:"attachment_text"`
+	AttachmentFooter StyleWrapper `toml:"attachment_footer"`
+	ReactionSelf     StyleWrapper `toml:"reaction_self"`
+	ReactionOther    StyleWrapper `toml:"reaction_other"`
+	DateSeparator    StyleWrapper `toml:"date_separator"`
+	NewMsgSeparator  StyleWrapper `toml:"new_msg_separator"`
 }
 
 // MessageInputTheme configures the message input styling.
@@ -267,13 +270,16 @@ type MessageInputTheme struct {
 
 // ThreadViewTheme configures the thread view styling.
 type ThreadViewTheme struct {
-	Author          StyleWrapper `toml:"author"`
-	Timestamp       StyleWrapper `toml:"timestamp"`
-	ParentLabel     StyleWrapper `toml:"parent_label"`
-	Separator       StyleWrapper `toml:"separator"`
-	EditedIndicator StyleWrapper `toml:"edited_indicator"`
-	FileAttachment  StyleWrapper `toml:"file_attachment"`
-	Reaction        StyleWrapper `toml:"reaction"`
+	Author           StyleWrapper `toml:"author"`
+	Timestamp        StyleWrapper `toml:"timestamp"`
+	ParentLabel      StyleWrapper `toml:"parent_label"`
+	Separator        StyleWrapper `toml:"separator"`
+	EditedIndicator  StyleWrapper `toml:"edited_indicator"`
+	FileAttachment   StyleWrapper `toml:"file_attachment"`
+	AttachmentTitle  StyleWrapper `toml:"attachment_title"`
+	AttachmentText   StyleWrapper `toml:"attachment_text"`
+	AttachmentFooter StyleWrapper `toml:"attachment_footer"`
+	Reaction         StyleWrapper `toml:"reaction"`
 }
 
 // MarkdownTheme configures markdown rendering colors.

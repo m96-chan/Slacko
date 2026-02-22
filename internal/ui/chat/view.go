@@ -38,7 +38,11 @@ type View struct {
 	FilePicker      *FilePicker
 	SearchPicker    *SearchPicker
 	PinsPicker       *PinsPicker
-	ChannelInfoPanel *ChannelInfoPanel
+	StarredPicker    *StarredPicker
+	UserProfilePanel *UserProfilePanel
+	ChannelInfoPanel  *ChannelInfoPanel
+	CommandBar        *CommandBar
+	WorkspacePicker   *WorkspacePicker
 
 	outerFlex        *tview.Flex
 	contentFlex      *tview.Flex
@@ -48,11 +52,15 @@ type View struct {
 	fileModal         tview.Primitive
 	searchModal       tview.Primitive
 	pinsModal         tview.Primitive
+	starredModal      tview.Primitive
+	userProfileModal  tview.Primitive
 	channelInfoModal  tview.Primitive
+	workspaceModal    tview.Primitive
 	activePanel       Panel
 	onMarkRead        func()
 	onMarkAllRead     func()
 	onPinnedMessages  func()
+	onStarredItems    func()
 	onChannelInfo     func()
 	channelsVisible   bool
 	threadVisible     bool
@@ -61,7 +69,12 @@ type View struct {
 	filePickerVisible bool
 	searchVisible     bool
 	pinsVisible       bool
+	starredVisible     bool
+	userProfileVisible bool
 	channelInfoVisible bool
+	commandBarVisible   bool
+	workspaceVisible    bool
+	onSwitchWorkspace   func(workspaceID string)
 }
 
 // New creates the main chat view with the full flex layout.
@@ -212,6 +225,38 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Starred items picker (modal overlay).
+	v.StarredPicker = NewStarredPicker(cfg)
+	v.StarredPicker.SetOnClose(func() {
+		v.HideStarredPicker()
+	})
+
+	// Centered modal wrapper for the starred picker.
+	v.starredModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.StarredPicker, 80, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
+	// User profile panel (modal overlay).
+	v.UserProfilePanel = NewUserProfilePanel(cfg)
+	v.UserProfilePanel.SetOnClose(func() {
+		v.HideUserProfile()
+	})
+
+	// Centered modal wrapper for the user profile panel.
+	v.userProfileModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.UserProfilePanel, 50, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Channel info panel (modal overlay).
 	v.ChannelInfoPanel = NewChannelInfoPanel(cfg)
 	v.ChannelInfoPanel.SetOnClose(func() {
@@ -227,6 +272,28 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			AddItem(nil, 0, 1, false),
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
+
+	// Workspace picker (modal overlay).
+	v.WorkspacePicker = NewWorkspacePicker(cfg)
+	v.WorkspacePicker.SetOnClose(func() {
+		v.HideWorkspacePicker()
+	})
+
+	// Centered modal wrapper for the workspace picker.
+	v.workspaceModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.WorkspacePicker, 50, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
+	// Command bar (vim-style, hidden by default).
+	v.CommandBar = NewCommandBar(cfg)
+	v.CommandBar.SetOnClose(func() {
+		v.HideCommandBar()
+	})
 
 	// Pages: main layout + modal overlays.
 	v.Pages = tview.NewPages().
@@ -257,6 +324,11 @@ func (v *View) SetOnMarkAllRead(fn func()) {
 // SetOnPinnedMessages sets the callback invoked when the user opens the pinned messages popup.
 func (v *View) SetOnPinnedMessages(fn func()) {
 	v.onPinnedMessages = fn
+}
+
+// SetOnStarredItems sets the callback invoked when the user opens the starred items popup.
+func (v *View) SetOnStarredItems(fn func()) {
+	v.onStarredItems = fn
 }
 
 // SetOnChannelInfo sets the callback invoked when the user opens the channel info panel.
@@ -311,6 +383,16 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	// Toggle workspace picker (Ctrl+T — non-rune, always works).
+	if name == v.cfg.Keybinds.SwitchTeam {
+		if v.workspaceVisible {
+			v.HideWorkspacePicker()
+		} else {
+			v.ShowWorkspacePicker()
+		}
+		return nil
+	}
+
 	// Toggle channel info (Ctrl+O — non-rune, always works).
 	if name == v.cfg.Keybinds.ChannelInfo {
 		if v.channelInfoVisible {
@@ -324,8 +406,8 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
-	// When a modal is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.channelInfoVisible {
+	// When a modal or command bar is visible, all other keys go to its input.
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.userProfileVisible || v.channelInfoVisible || v.commandBarVisible || v.workspaceVisible {
 		return event
 	}
 
@@ -371,6 +453,19 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 				v.onPinnedMessages()
 			}
 		}
+		return nil
+	case v.cfg.Keybinds.StarredItems:
+		if v.starredVisible {
+			v.HideStarredPicker()
+		} else {
+			v.ShowStarredPicker()
+			if v.onStarredItems != nil {
+				v.onStarredItems()
+			}
+		}
+		return nil
+	case v.cfg.Keybinds.CommandMode:
+		v.ShowCommandBar()
 		return nil
 	}
 
@@ -463,6 +558,36 @@ func (v *View) HidePinsPicker() {
 	v.FocusPanel(v.activePanel)
 }
 
+// ShowStarredPicker shows the starred items picker modal overlay.
+func (v *View) ShowStarredPicker() {
+	v.starredVisible = true
+	v.StarredPicker.Reset()
+	v.Pages.AddPage("starred", v.starredModal, true, true)
+	v.app.SetFocus(v.StarredPicker.list)
+}
+
+// HideStarredPicker hides the starred items picker and restores focus.
+func (v *View) HideStarredPicker() {
+	v.starredVisible = false
+	v.Pages.RemovePage("starred")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowUserProfile shows the user profile panel modal overlay.
+func (v *View) ShowUserProfile() {
+	v.userProfileVisible = true
+	v.UserProfilePanel.Reset()
+	v.Pages.AddPage("userprofile", v.userProfileModal, true, true)
+	v.app.SetFocus(v.UserProfilePanel.content)
+}
+
+// HideUserProfile hides the user profile panel and restores focus.
+func (v *View) HideUserProfile() {
+	v.userProfileVisible = false
+	v.Pages.RemovePage("userprofile")
+	v.FocusPanel(v.activePanel)
+}
+
 // ShowChannelInfo shows the channel info panel modal overlay.
 func (v *View) ShowChannelInfo() {
 	v.channelInfoVisible = true
@@ -475,6 +600,50 @@ func (v *View) ShowChannelInfo() {
 func (v *View) HideChannelInfo() {
 	v.channelInfoVisible = false
 	v.Pages.RemovePage("channelinfo")
+	v.FocusPanel(v.activePanel)
+}
+
+// SetOnSwitchWorkspace sets the callback for workspace switching.
+func (v *View) SetOnSwitchWorkspace(fn func(workspaceID string)) {
+	v.onSwitchWorkspace = fn
+	v.WorkspacePicker.SetOnSelect(func(id string) {
+		v.HideWorkspacePicker()
+		if fn != nil {
+			fn(id)
+		}
+	})
+}
+
+// ShowWorkspacePicker shows the workspace picker modal overlay.
+func (v *View) ShowWorkspacePicker() {
+	v.workspaceVisible = true
+	v.WorkspacePicker.Reset()
+	v.Pages.AddPage("workspace", v.workspaceModal, true, true)
+	v.app.SetFocus(v.WorkspacePicker.list)
+}
+
+// HideWorkspacePicker hides the workspace picker and restores focus.
+func (v *View) HideWorkspacePicker() {
+	v.workspaceVisible = false
+	v.Pages.RemovePage("workspace")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowCommandBar shows the vim-style command bar at the bottom.
+func (v *View) ShowCommandBar() {
+	v.commandBarVisible = true
+	v.CommandBar.Reset()
+	// Replace status bar with command bar.
+	v.outerFlex.RemoveItem(v.StatusBar)
+	v.outerFlex.AddItem(v.CommandBar, 1, 0, true)
+	v.app.SetFocus(v.CommandBar)
+}
+
+// HideCommandBar hides the command bar and restores the status bar.
+func (v *View) HideCommandBar() {
+	v.commandBarVisible = false
+	v.outerFlex.RemoveItem(v.CommandBar)
+	v.outerFlex.AddItem(v.StatusBar, 1, 0, false)
 	v.FocusPanel(v.activePanel)
 }
 

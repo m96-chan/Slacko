@@ -24,6 +24,8 @@ type Config struct {
 	MessagesLimit       int    `toml:"messages_limit"`
 	DownloadDir         string `toml:"download_dir"`
 
+	AsciiIcons      bool            `toml:"ascii_icons"`
+
 	Markdown       MarkdownConfig  `toml:"markdown"`
 	Timestamps     Timestamps      `toml:"timestamps"`
 	DateSeparator  DateSeparator   `toml:"date_separator"`
