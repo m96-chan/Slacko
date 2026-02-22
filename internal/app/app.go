@@ -189,6 +189,44 @@ func (a *App) showMain() {
 				})
 			}
 		},
+		OnMessage: func(evt *slackevents.MessageEvent) {
+			msg := slack.Message{}
+			msg.User = evt.User
+			msg.Text = evt.Text
+			msg.Timestamp = evt.TimeStamp
+			msg.ThreadTimestamp = evt.ThreadTimeStamp
+			msg.Channel = evt.Channel
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.AppendMessage(evt.Channel, msg)
+			})
+		},
+		OnMessageChanged: func(evt *slackevents.MessageEvent) {
+			if evt.Message == nil {
+				return
+			}
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.UpdateMessage(
+					evt.Channel, evt.Message.Timestamp, evt.Message.Text)
+			})
+		},
+		OnMessageDeleted: func(evt *slackevents.MessageEvent) {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.RemoveMessage(
+					evt.Channel, evt.PreviousMessage.Timestamp)
+			})
+		},
+		OnReactionAdded: func(evt *slackevents.ReactionAddedEvent) {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.AddReaction(
+					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction)
+			})
+		},
+		OnReactionRemoved: func(evt *slackevents.ReactionRemovedEvent) {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MessagesList.RemoveReaction(
+					evt.Item.Channel, evt.Item.Timestamp, evt.Reaction)
+			})
+		},
 	}
 
 	go func() {
@@ -235,14 +273,35 @@ func (a *App) fetchInitialData() {
 // onChannelSelected is called when the user selects a channel in the tree.
 func (a *App) onChannelSelected(channelID string) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	for _, ch := range a.channels {
 		if ch.ID == channelID {
 			a.chatView.SetChannelHeader(ch.Name, ch.Topic.Value)
-			return
+			break
 		}
 	}
+	a.mu.Unlock()
+
+	go a.loadMessages(channelID)
+}
+
+// loadMessages fetches conversation history and updates the messages list.
+func (a *App) loadMessages(channelID string) {
+	resp, err := a.slack.GetConversationHistory(&slack.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Limit:     a.Config.MessagesLimit,
+	})
+	if err != nil {
+		slog.Error("failed to fetch messages", "channel", channelID, "error", err)
+		return
+	}
+
+	a.mu.Lock()
+	users := a.users
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.MessagesList.SetMessages(channelID, resp.Messages, users)
+	})
 }
 
 // fetchAllChannels retrieves all conversations with pagination.

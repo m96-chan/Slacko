@@ -32,6 +32,8 @@ type ChannelsTreeKeybinds struct {
 
 // MessagesListKeybinds holds keybindings for the messages list panel.
 type MessagesListKeybinds struct {
+	Up            string `toml:"up"`
+	Down          string `toml:"down"`
 	SelectCurrent string `toml:"select_current"`
 	ScrollUp      string `toml:"scroll_up"`
 	ScrollDown    string `toml:"scroll_down"`
