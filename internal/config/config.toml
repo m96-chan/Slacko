@@ -7,6 +7,11 @@ messages_limit = 50
 download_dir = ""
 ascii_icons = false
 
+[oauth]
+client_id = ""
+client_secret = ""
+app_token = ""
+
 [markdown]
 enabled = true
 syntax_theme = "monokai"
@@ -40,6 +45,8 @@ enabled = true
 focus_channels = "Rune[1]"
 focus_messages = "Rune[2]"
 focus_input = "Rune[3]"
+focus_previous = "Ctrl+W"
+focus_next = "Ctrl+L"
 toggle_thread = "Rune[t]"
 toggle_channels = "Ctrl+B"
 channel_picker = "Ctrl+K"
@@ -60,7 +67,7 @@ down = "Rune[j]"
 top = "Rune[g]"
 bottom = "Rune[G]"
 select_current = "Enter"
-collapse = "Rune[c]"
+collapse = "Rune[-]"
 move_to_parent = "Rune[p]"
 copy_channel_id = "Rune[i]"
 

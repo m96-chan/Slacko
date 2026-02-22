@@ -14,6 +14,13 @@ import (
 //go:embed config.toml
 var defaultConfig []byte
 
+// OAuthConfig holds OAuth credentials for browser-based login.
+type OAuthConfig struct {
+	ClientID     string `toml:"client_id"`
+	ClientSecret string `toml:"client_secret"`
+	AppToken     string `toml:"app_token"`
+}
+
 // Config holds the application configuration.
 type Config struct {
 	Mouse               bool   `toml:"mouse"`
@@ -33,6 +40,7 @@ type Config struct {
 	TypingIndicator TypingIndicator `toml:"typing_indicator"`
 	Threads         Threads         `toml:"threads"`
 	Presence        Presence        `toml:"presence"`
+	OAuth           OAuthConfig     `toml:"oauth"`
 
 	Keybinds Keybinds `toml:"keybinds"`
 	Theme    Theme    `toml:"theme"`
@@ -154,6 +162,17 @@ func applyDefaults(cfg *Config) {
 			home = os.TempDir()
 		}
 		cfg.DownloadDir = filepath.Join(home, "Downloads")
+	}
+
+	// OAuth env var overrides.
+	if v := os.Getenv("SLACKO_CLIENT_ID"); v != "" {
+		cfg.OAuth.ClientID = v
+	}
+	if v := os.Getenv("SLACKO_CLIENT_SECRET"); v != "" {
+		cfg.OAuth.ClientSecret = v
+	}
+	if v := os.Getenv("SLACKO_APP_TOKEN"); v != "" {
+		cfg.OAuth.AppToken = v
 	}
 }
 

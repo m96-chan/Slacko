@@ -9,6 +9,8 @@ All keybindings are customizable in `config.toml` under `[keybinds]`.
 | `1` | `focus_channels` | Focus channel tree |
 | `2` | `focus_messages` | Focus messages list |
 | `3` | `focus_input` | Focus message input |
+| `Ctrl+W` | `focus_previous` | Focus previous panel |
+| `Ctrl+L` | `focus_next` | Focus next panel |
 | `t` | `toggle_thread` | Toggle thread view |
 | `Ctrl+B` | `toggle_channels` | Toggle channel tree visibility |
 | `Ctrl+K` | `channel_picker` | Open channel picker |
@@ -30,7 +32,7 @@ All keybindings are customizable in `config.toml` under `[keybinds]`.
 | `k` / `j` | `up` / `down` | Navigate up / down |
 | `g` / `G` | `top` / `bottom` | Jump to first / last |
 | `Enter` | `select_current` | Select channel or expand |
-| `c` | `collapse` | Collapse section |
+| `-` | `collapse` | Collapse section |
 | `p` | `move_to_parent` | Move to parent node |
 | `i` | `copy_channel_id` | Copy channel ID |
 
@@ -108,6 +110,7 @@ Type these in the message input:
 | `/reminders` | List your reminders |
 | `/search query` | Search messages |
 | `/open url` | Open URL in browser |
+| `/logout` | Log out and clear tokens (returns to login; re-triggers OAuth if configured) |
 
 ## Vim Command Mode
 
@@ -124,6 +127,7 @@ Press `:` to open the command bar. Available commands:
 | `:mark-all-read` | | Mark all channels as read |
 | `:open url` | | Open URL in browser |
 | `:reconnect` | | Reconnect to Slack |
+| `:logout` | | Log out and clear tokens (returns to login; re-triggers OAuth if configured) |
 | `:debug` | | Toggle debug logging |
 | `:set key=value` | | Set a config value |
 | `:workspace` | `:ws` | Switch workspace |
