@@ -111,7 +111,8 @@ func (c *Client) GetConversationReplies(params *slack.GetConversationRepliesPara
 	return msgs, hasMore, cursor, err
 }
 
-// PostMessage sends a message to a channel.
+// PostMessage sends a message to a channel. If the user is not a member of the
+// channel, it automatically joins first and retries.
 func (c *Client) PostMessage(channelID string, options ...slack.MsgOption) (string, string, error) {
 	var (
 		channel string
@@ -122,7 +123,26 @@ func (c *Client) PostMessage(channelID string, options ...slack.MsgOption) (stri
 		channel, ts, e = c.api.PostMessage(channelID, options...)
 		return e
 	})
+	if err != nil && isNotInChannel(err) {
+		if _, _, _, joinErr := c.api.JoinConversation(channelID); joinErr != nil {
+			return "", "", fmt.Errorf("auto-join failed: %w", joinErr)
+		}
+		err = retryOnRateLimit(func() error {
+			var e error
+			channel, ts, e = c.api.PostMessage(channelID, options...)
+			return e
+		})
+	}
 	return channel, ts, err
+}
+
+// isNotInChannel checks if the error is a "not_in_channel" Slack API error.
+func isNotInChannel(err error) bool {
+	var slackErr slack.SlackErrorResponse
+	if errors.As(err, &slackErr) {
+		return slackErr.Err == "not_in_channel"
+	}
+	return strings.Contains(err.Error(), "not_in_channel")
 }
 
 // UpdateMessage updates a message in a channel.
