@@ -19,6 +19,7 @@ type Keybinds struct {
 	MessageInput   MessageInputKeybinds   `toml:"message_input"`
 	ThreadView     ThreadViewKeybinds     `toml:"thread_view"`
 	ChannelsPicker ChannelsPickerKeybinds `toml:"channels_picker"`
+	FilePicker     FilePickerKeybinds     `toml:"file_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -46,6 +47,7 @@ type MessagesListKeybinds struct {
 	RemoveReaction  string `toml:"remove_reaction"`
 	Thread          string `toml:"thread"`
 	Yank            string `toml:"yank"`
+	OpenFile        string `toml:"open_file"`
 	Cancel          string `toml:"cancel"`
 }
 
@@ -70,6 +72,14 @@ type ThreadViewKeybinds struct {
 
 // ChannelsPickerKeybinds holds keybindings for the channel picker popup.
 type ChannelsPickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
+}
+
+// FilePickerKeybinds holds keybindings for the file picker popup.
+type FilePickerKeybinds struct {
 	Close  string `toml:"close"`
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`

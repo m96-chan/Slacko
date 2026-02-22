@@ -21,6 +21,7 @@ type Config struct {
 	ShowAttachmentLinks bool   `toml:"show_attachment_links"`
 	AutocompleteLimit   int    `toml:"autocomplete_limit"`
 	MessagesLimit       int    `toml:"messages_limit"`
+	DownloadDir         string `toml:"download_dir"`
 
 	Markdown       MarkdownConfig  `toml:"markdown"`
 	Timestamps     Timestamps      `toml:"timestamps"`
@@ -135,6 +136,15 @@ func applyDefaults(cfg *Config) {
 	// Ensure date separator character is set.
 	if cfg.DateSeparator.Character == "" {
 		cfg.DateSeparator.Character = "─"
+	}
+
+	// Resolve download directory.
+	if cfg.DownloadDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = os.TempDir()
+		}
+		cfg.DownloadDir = filepath.Join(home, "Downloads")
 	}
 }
 

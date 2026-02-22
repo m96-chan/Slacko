@@ -11,13 +11,13 @@ import (
 	"github.com/m96-chan/Slacko/internal/ui/keys"
 )
 
-// inputMode tracks the current input state.
-type inputMode int
+// InputMode tracks the current input state.
+type InputMode int
 
 const (
-	inputModeNormal inputMode = iota
-	inputModeReply
-	inputModeEdit
+	InputModeNormal InputMode = iota
+	InputModeReply
+	InputModeEdit
 )
 
 // OnSendFunc is called when the user sends a message.
@@ -32,7 +32,7 @@ type MessageInput struct {
 	*tview.TextArea
 	cfg       *config.Config
 	channelID string
-	mode      inputMode
+	mode      InputMode
 	threadTS  string // set in reply mode
 	editTS    string // set in edit mode
 	onSend    OnSendFunc
@@ -45,6 +45,8 @@ type MessageInput struct {
 	acStart            int // byte offset of trigger char in text
 	onShowAutocomplete func(count int)
 	onHideAutocomplete func()
+
+	onOpenFilePicker func()
 }
 
 // NewMessageInput creates a new message input component.
@@ -52,7 +54,7 @@ func NewMessageInput(cfg *config.Config) *MessageInput {
 	mi := &MessageInput{
 		TextArea: tview.NewTextArea(),
 		cfg:      cfg,
-		mode:     inputModeNormal,
+		mode:     InputModeNormal,
 	}
 
 	mi.SetBorder(true).SetTitle(" Input ")
@@ -94,33 +96,48 @@ func (mi *MessageInput) SetOnHideAutocomplete(fn func()) {
 	mi.onHideAutocomplete = fn
 }
 
+// SetOnOpenFilePicker sets the callback for opening the file picker.
+func (mi *MessageInput) SetOnOpenFilePicker(fn func()) {
+	mi.onOpenFilePicker = fn
+}
+
 // SetChannel sets the active channel for outgoing messages.
 func (mi *MessageInput) SetChannel(channelID string) {
 	mi.channelID = channelID
 	// Cancel any active reply/edit when switching channels.
-	if mi.mode != inputModeNormal {
+	if mi.mode != InputModeNormal {
 		mi.cancelMode()
 	}
 }
 
 // SetReplyContext enters reply mode.
 func (mi *MessageInput) SetReplyContext(threadTS, userName string) {
-	mi.mode = inputModeReply
+	mi.mode = InputModeReply
 	mi.threadTS = threadTS
 	mi.SetTitle(fmt.Sprintf(" Reply to %s ", userName))
 }
 
 // SetEditMode enters edit mode, populating the input with existing text.
 func (mi *MessageInput) SetEditMode(timestamp, text string) {
-	mi.mode = inputModeEdit
+	mi.mode = InputModeEdit
 	mi.editTS = timestamp
 	mi.SetTitle(" Editing ")
 	mi.SetText(text, true)
 }
 
 // Mode returns the current input mode.
-func (mi *MessageInput) Mode() inputMode {
+func (mi *MessageInput) Mode() InputMode {
 	return mi.mode
+}
+
+// ChannelID returns the active channel ID.
+func (mi *MessageInput) ChannelID() string {
+	return mi.channelID
+}
+
+// ThreadTS returns the thread timestamp in reply mode.
+func (mi *MessageInput) ThreadTS() string {
+	return mi.threadTS
 }
 
 // handleInput processes keybindings for the input area.
@@ -155,8 +172,14 @@ func (mi *MessageInput) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		// Transform Shift+Enter into plain Enter so TextArea adds a newline.
 		return tcell.NewEventKey(tcell.KeyEnter, '\n', tcell.ModNone)
 
+	case mi.cfg.Keybinds.MessageInput.OpenFilePicker:
+		if mi.onOpenFilePicker != nil {
+			mi.onOpenFilePicker()
+		}
+		return nil
+
 	case mi.cfg.Keybinds.MessageInput.Cancel:
-		if mi.mode != inputModeNormal {
+		if mi.mode != InputModeNormal {
 			mi.cancelMode()
 			return nil
 		}
@@ -178,13 +201,13 @@ func (mi *MessageInput) send() {
 	}
 
 	switch mi.mode {
-	case inputModeEdit:
+	case InputModeEdit:
 		if mi.onEdit != nil {
 			mi.onEdit(mi.channelID, mi.editTS, text)
 		}
 	default:
 		threadTS := ""
-		if mi.mode == inputModeReply {
+		if mi.mode == InputModeReply {
 			threadTS = mi.threadTS
 		}
 		if mi.onSend != nil {
@@ -257,13 +280,13 @@ func (mi *MessageInput) dismissAutocomplete() {
 // cancelMode resets the input to normal mode.
 func (mi *MessageInput) cancelMode() {
 	prevMode := mi.mode
-	mi.mode = inputModeNormal
+	mi.mode = InputModeNormal
 	mi.threadTS = ""
 	mi.editTS = ""
 	mi.SetTitle(" Input ")
 
 	// Clear text when cancelling edit mode.
-	if prevMode == inputModeEdit {
+	if prevMode == InputModeEdit {
 		mi.SetText("", false)
 	}
 

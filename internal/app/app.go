@@ -4,8 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 
@@ -189,6 +195,27 @@ func (a *App) showMain() {
 				slog.Error("failed to remove reaction", "channel", channelID, "error", err)
 			}
 		}()
+	})
+
+	// Wire file picker: Ctrl+F from input opens picker, selection triggers upload.
+	a.chatView.MessageInput.SetOnOpenFilePicker(func() {
+		a.chatView.ShowFilePicker()
+	})
+	a.chatView.FilePicker.SetOnSelect(func(filePath string) {
+		channelID := a.chatView.MessageInput.ChannelID()
+		if channelID == "" {
+			return
+		}
+		threadTS := ""
+		if a.chatView.MessageInput.Mode() == chat.InputModeReply {
+			threadTS = a.chatView.MessageInput.ThreadTS()
+		}
+		go a.uploadFile(channelID, threadTS, filePath)
+	})
+
+	// Wire file open from messages list.
+	a.chatView.MessagesList.SetOnFileOpenRequest(func(channelID string, file slack.File) {
+		go a.openFile(file)
 	})
 
 	a.chatView.StatusBar.SetConnectionStatus(
@@ -516,6 +543,106 @@ func (a *App) maybeNotify(evt *slackevents.MessageEvent) {
 	}
 
 	a.notifier.Send(title, body)
+}
+
+// uploadFile uploads a local file to the given channel, optionally in a thread.
+func (a *App) uploadFile(channelID, threadTS, filePath string) {
+	name := filepath.Base(filePath)
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.StatusBar.SetConnectionStatus(
+			fmt.Sprintf("%s (%s) — uploading %s...", a.slack.UserName, a.slack.TeamName, name))
+	})
+
+	params := slack.UploadFileParameters{
+		File:            filePath,
+		Filename:        name,
+		Channel:         channelID,
+		ThreadTimestamp: threadTS,
+	}
+
+	_, err := a.slack.UploadFile(params)
+
+	a.tview.QueueUpdateDraw(func() {
+		if err != nil {
+			slog.Error("failed to upload file", "file", filePath, "error", err)
+			a.chatView.StatusBar.SetConnectionStatus(
+				fmt.Sprintf("%s (%s) — upload failed: %s", a.slack.UserName, a.slack.TeamName, err.Error()))
+		} else {
+			a.chatView.StatusBar.SetConnectionStatus(
+				fmt.Sprintf("%s (%s) — uploaded %s", a.slack.UserName, a.slack.TeamName, name))
+		}
+	})
+}
+
+// openFile downloads a Slack file and opens it with the system default application.
+func (a *App) openFile(file slack.File) {
+	url := file.URLPrivateDownload
+	if url == "" {
+		url = file.URLPrivate
+	}
+	if url == "" {
+		slog.Error("no download URL for file", "file_id", file.ID)
+		return
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.StatusBar.SetConnectionStatus(
+			fmt.Sprintf("%s (%s) — downloading %s...", a.slack.UserName, a.slack.TeamName, file.Name))
+	})
+
+	// Ensure download directory exists.
+	downloadDir := a.Config.DownloadDir
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		slog.Error("failed to create download dir", "dir", downloadDir, "error", err)
+		return
+	}
+
+	destPath := filepath.Join(downloadDir, file.Name)
+
+	// Download with auth token.
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		slog.Error("failed to create download request", "error", err)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+a.slack.Token())
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Error("failed to download file", "error", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		slog.Error("failed to create file", "path", destPath, "error", err)
+		return
+	}
+	_, err = io.Copy(out, resp.Body)
+	out.Close()
+	if err != nil {
+		slog.Error("failed to write file", "path", destPath, "error", err)
+		return
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.StatusBar.SetConnectionStatus(
+			fmt.Sprintf("%s (%s) — opening %s", a.slack.UserName, a.slack.TeamName, file.Name))
+	})
+
+	// Open with system default.
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", destPath)
+	default:
+		cmd = exec.Command("xdg-open", destPath)
+	}
+	if err := cmd.Start(); err != nil {
+		slog.Error("failed to open file", "path", destPath, "error", err)
+	}
 }
 
 // fetchAllChannels retrieves all conversations with pagination.

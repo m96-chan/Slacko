@@ -29,6 +29,9 @@ type OnReactionAddRequestFunc func(channelID, timestamp string)
 // OnReactionRemoveRequestFunc is called when the user wants to remove a reaction.
 type OnReactionRemoveRequestFunc func(channelID, timestamp, reaction string)
 
+// OnFileOpenRequestFunc is called when the user wants to open/download a file.
+type OnFileOpenRequestFunc func(channelID string, file slack.File)
+
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
@@ -44,6 +47,7 @@ type MessagesList struct {
 	onThreadRequest        OnThreadRequestFunc
 	onReactionAddRequest   OnReactionAddRequestFunc
 	onReactionRemoveRequest OnReactionRemoveRequestFunc
+	onFileOpenRequest      OnFileOpenRequestFunc
 }
 
 // NewMessagesList creates a new messages list component.
@@ -100,6 +104,11 @@ func (ml *MessagesList) SetOnReactionAddRequest(fn OnReactionAddRequestFunc) {
 // SetOnReactionRemoveRequest sets the callback for removing reactions.
 func (ml *MessagesList) SetOnReactionRemoveRequest(fn OnReactionRemoveRequestFunc) {
 	ml.onReactionRemoveRequest = fn
+}
+
+// SetOnFileOpenRequest sets the callback for opening/downloading files.
+func (ml *MessagesList) SetOnFileOpenRequest(fn OnFileOpenRequestFunc) {
+	ml.onFileOpenRequest = fn
 }
 
 // IncrementReplyCount increments the reply count on a parent message.
@@ -317,8 +326,9 @@ func (ml *MessagesList) render() {
 
 		// File attachments.
 		for _, f := range msg.Files {
-			fmt.Fprintf(&b, "  [blue]📎 %s (%s)[-]\n",
-				tview.Escape(f.Name), formatFileSize(f.Size))
+			icon := fileIcon(f.Name)
+			fmt.Fprintf(&b, "  [blue]%s %s (%s)[-]\n",
+				icon, tview.Escape(f.Name), formatFileSize(f.Size))
 		}
 
 		// Reactions.
@@ -432,6 +442,15 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 					ml.onReactionRemoveRequest(ml.channelID, msg.Timestamp, r.Name)
 					return nil
 				}
+			}
+		}
+
+	case ml.cfg.Keybinds.MessagesList.OpenFile:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onFileOpenRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			if len(msg.Files) > 0 {
+				ml.onFileOpenRequest(ml.channelID, msg.Files[0])
+				return nil
 			}
 		}
 	}

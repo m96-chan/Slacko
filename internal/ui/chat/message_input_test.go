@@ -17,7 +17,7 @@ func newTestInput() *MessageInput {
 func TestMessageInput_InitialState(t *testing.T) {
 	mi := newTestInput()
 
-	if mi.Mode() != inputModeNormal {
+	if mi.Mode() != InputModeNormal {
 		t.Errorf("initial mode should be normal, got %d", mi.Mode())
 	}
 	if mi.channelID != "" {
@@ -39,7 +39,7 @@ func TestMessageInput_SetReplyContext(t *testing.T) {
 	mi.SetChannel("C123")
 	mi.SetReplyContext("1234.5678", "alice")
 
-	if mi.Mode() != inputModeReply {
+	if mi.Mode() != InputModeReply {
 		t.Errorf("mode should be reply, got %d", mi.Mode())
 	}
 	if mi.threadTS != "1234.5678" {
@@ -52,7 +52,7 @@ func TestMessageInput_SetEditMode(t *testing.T) {
 	mi.SetChannel("C123")
 	mi.SetEditMode("1234.5678", "original text")
 
-	if mi.Mode() != inputModeEdit {
+	if mi.Mode() != InputModeEdit {
 		t.Errorf("mode should be edit, got %d", mi.Mode())
 	}
 	if mi.editTS != "1234.5678" {
@@ -70,7 +70,7 @@ func TestMessageInput_CancelEditClearsText(t *testing.T) {
 
 	mi.cancelMode()
 
-	if mi.Mode() != inputModeNormal {
+	if mi.Mode() != InputModeNormal {
 		t.Errorf("mode should be normal after cancel, got %d", mi.Mode())
 	}
 	if got := mi.GetText(); got != "" {
@@ -86,7 +86,7 @@ func TestMessageInput_CancelReplyKeepsText(t *testing.T) {
 
 	mi.cancelMode()
 
-	if mi.Mode() != inputModeNormal {
+	if mi.Mode() != InputModeNormal {
 		t.Errorf("mode should be normal after cancel, got %d", mi.Mode())
 	}
 	// Text should be preserved when cancelling reply mode.
@@ -141,7 +141,7 @@ func TestMessageInput_SendInReplyMode(t *testing.T) {
 		t.Errorf("threadTS should be 1234.5678, got %q", gotThread)
 	}
 	// Mode should reset after send.
-	if mi.Mode() != inputModeNormal {
+	if mi.Mode() != InputModeNormal {
 		t.Errorf("mode should be normal after send, got %d", mi.Mode())
 	}
 }
@@ -212,7 +212,7 @@ func TestMessageInput_ChannelSwitchCancelsMode(t *testing.T) {
 
 	mi.SetChannel("C456")
 
-	if mi.Mode() != inputModeNormal {
+	if mi.Mode() != InputModeNormal {
 		t.Errorf("mode should be normal after channel switch, got %d", mi.Mode())
 	}
 	if mi.channelID != "C456" {

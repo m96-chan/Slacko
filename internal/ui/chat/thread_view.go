@@ -210,6 +210,13 @@ func (tv *ThreadView) render() {
 			b.WriteString("  [gray::d](edited)[-::-]\n")
 		}
 
+		// File attachments.
+		for _, f := range msg.Files {
+			icon := fileIcon(f.Name)
+			fmt.Fprintf(&b, "  [blue]%s %s (%s)[-]\n",
+				icon, tview.Escape(f.Name), formatFileSize(f.Size))
+		}
+
 		// Reactions.
 		if len(msg.Reactions) > 0 {
 			b.WriteString("  ")

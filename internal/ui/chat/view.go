@@ -35,17 +35,20 @@ type View struct {
 	ThreadView      *ThreadView
 	ChannelsPicker  *ChannelsPicker
 	ReactionsPicker *ReactionsPicker
+	FilePicker      *FilePicker
 
 	outerFlex        *tview.Flex
 	contentFlex      *tview.Flex
 	mainFlex         *tview.Flex
 	pickerModal      tview.Primitive
 	reactionModal    tview.Primitive
+	fileModal        tview.Primitive
 	activePanel      Panel
 	channelsVisible  bool
 	threadVisible    bool
 	pickerVisible    bool
 	reactionVisible  bool
+	filePickerVisible bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -148,6 +151,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// File picker (modal overlay).
+	v.FilePicker = NewFilePicker(cfg)
+	v.FilePicker.SetOnClose(func() {
+		v.HideFilePicker()
+	})
+
+	// Centered modal wrapper for the file picker.
+	v.fileModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.FilePicker, 60, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Pages: main layout + modal overlays.
 	v.Pages = tview.NewPages().
 		AddPage("main", v.outerFlex, true, true)
@@ -202,7 +221,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible {
 		return event
 	}
 
@@ -272,6 +291,21 @@ func (v *View) ShowReactionPicker() {
 func (v *View) HideReactionPicker() {
 	v.reactionVisible = false
 	v.Pages.RemovePage("reaction")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowFilePicker shows the file picker modal overlay.
+func (v *View) ShowFilePicker() {
+	v.filePickerVisible = true
+	v.FilePicker.Reset()
+	v.Pages.AddPage("filepicker", v.fileModal, true, true)
+	v.app.SetFocus(v.FilePicker.input)
+}
+
+// HideFilePicker hides the file picker and restores focus.
+func (v *View) HideFilePicker() {
+	v.filePickerVisible = false
+	v.Pages.RemovePage("filepicker")
 	v.FocusPanel(v.activePanel)
 }
 

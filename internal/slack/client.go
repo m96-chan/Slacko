@@ -11,6 +11,7 @@ import (
 // and cached identity information.
 type Client struct {
 	api      *slack.Client
+	token    string
 	UserID   string
 	TeamID   string
 	TeamName string
@@ -34,6 +35,7 @@ func New(botToken, appToken string) (*Client, error) {
 
 	return &Client{
 		api:      api,
+		token:    botToken,
 		UserID:   resp.UserID,
 		TeamID:   resp.TeamID,
 		TeamName: resp.Team,
@@ -43,6 +45,9 @@ func New(botToken, appToken string) (*Client, error) {
 
 // API returns the underlying slack.Client for direct access (e.g. socketmode).
 func (c *Client) API() *slack.Client { return c.api }
+
+// Token returns the bot token for authenticated HTTP requests.
+func (c *Client) Token() string { return c.token }
 
 // retryOnRateLimit executes fn and, if a RateLimitedError is returned,
 // sleeps for the requested duration and retries once.

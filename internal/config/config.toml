@@ -4,6 +4,7 @@ auto_focus = true
 show_attachment_links = true
 autocomplete_limit = 10
 messages_limit = 50
+download_dir = ""
 
 [markdown]
 enabled = true
@@ -64,6 +65,7 @@ reactions = "Rune[+]"
 remove_reaction = "Rune[-]"
 thread = "Rune[t]"
 yank = "Rune[y]"
+open_file = "Rune[o]"
 cancel = "Escape"
 
 [keybinds.message_input]
@@ -82,6 +84,12 @@ reply = "Rune[r]"
 close = "Escape"
 
 [keybinds.channels_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+
+[keybinds.file_picker]
 close = "Escape"
 up = "Ctrl+P"
 down = "Ctrl+N"
