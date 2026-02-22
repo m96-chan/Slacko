@@ -5,7 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os/signal"
+	"strings"
+	"sync"
+	"syscall"
 
+	"github.com/gdamore/tcell/v2"
+	"github.com/slack-go/slack"
 	gokeyring "github.com/zalando/go-keyring"
 
 	"github.com/m96-chan/Slacko/internal/config"
@@ -17,10 +23,13 @@ import (
 
 // App is the top-level application struct.
 type App struct {
-	Config *config.Config
-	tview  *tview.Application
-	slack  *slackclient.Client
-	cancel context.CancelFunc
+	Config   *config.Config
+	tview    *tview.Application
+	slack    *slackclient.Client
+	cancel   context.CancelFunc
+	channels []slack.Channel
+	users    map[string]slack.User
+	mu       sync.Mutex
 }
 
 // New creates a new App with the given config.
@@ -28,6 +37,7 @@ func New(cfg *config.Config) *App {
 	return &App{
 		Config: cfg,
 		tview:  tview.NewApplication(),
+		users:  make(map[string]slack.User),
 	}
 }
 
@@ -35,6 +45,17 @@ func New(cfg *config.Config) *App {
 // tokens and shows the login form when tokens are missing or invalid.
 func (a *App) Run() error {
 	a.tview.EnableMouse(a.Config.Mouse)
+
+	// Set up OS signal handling for graceful shutdown.
+	sigCtx, sigStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCtx.Done()
+		sigStop()
+		a.shutdown()
+	}()
+
+	// Register global keybindings.
+	a.tview.SetInputCapture(a.handleGlobalKey)
 
 	bot, botErr := keyring.GetBotToken()
 	app, appErr := keyring.GetAppToken()
@@ -59,6 +80,33 @@ func (a *App) Run() error {
 	}
 
 	return a.tview.Run()
+}
+
+// shutdown tears down Socket Mode and stops the TUI.
+func (a *App) shutdown() {
+	if a.cancel != nil {
+		a.cancel()
+	}
+	a.tview.Stop()
+}
+
+// normalizeKeyName converts tcell key names to the config format.
+// tcell outputs "Ctrl-C" (hyphen) for bare Ctrl keys but config uses "Ctrl+C" (plus).
+func normalizeKeyName(name string) string {
+	return strings.ReplaceAll(name, "Ctrl-", "Ctrl+")
+}
+
+// handleGlobalKey processes global keybindings. It returns nil to consume the
+// event or the original event to let it propagate.
+func (a *App) handleGlobalKey(event *tcell.EventKey) *tcell.EventKey {
+	name := normalizeKeyName(event.Name())
+
+	if name == a.Config.Keybinds.Quit {
+		a.shutdown()
+		return nil
+	}
+
+	return event
 }
 
 // showLogin sets the root to the login form.
@@ -94,6 +142,9 @@ func (a *App) showMain() {
 			a.tview.QueueUpdateDraw(func() {
 				text.SetText(fmt.Sprintf("authenticated as %s (%s) — connected", a.slack.UserName, a.slack.TeamName))
 			})
+
+			// Fetch initial channel and user data.
+			go a.fetchInitialData(text)
 		},
 		OnDisconnected: func() {
 			slog.Warn("socket mode disconnected")
@@ -111,4 +162,60 @@ func (a *App) showMain() {
 			slog.Error("socket mode exited", "error", err)
 		}
 	}()
+}
+
+// fetchInitialData loads channels and users from Slack after connecting.
+func (a *App) fetchInitialData(text *tview.TextView) {
+	channels, err := a.fetchAllChannels()
+	if err != nil {
+		slog.Error("failed to fetch channels", "error", err)
+		return
+	}
+
+	users, err := a.slack.GetUsers()
+	if err != nil {
+		slog.Error("failed to fetch users", "error", err)
+		return
+	}
+
+	userMap := make(map[string]slack.User, len(users))
+	for _, u := range users {
+		userMap[u.ID] = u
+	}
+
+	a.mu.Lock()
+	a.channels = channels
+	a.users = userMap
+	a.mu.Unlock()
+
+	slog.Info("initial data loaded", "channels", len(channels), "users", len(users))
+
+	a.tview.QueueUpdateDraw(func() {
+		text.SetText(fmt.Sprintf("authenticated as %s (%s) — connected (%d channels, %d users)",
+			a.slack.UserName, a.slack.TeamName, len(channels), len(users)))
+	})
+}
+
+// fetchAllChannels retrieves all conversations with pagination.
+func (a *App) fetchAllChannels() ([]slack.Channel, error) {
+	var all []slack.Channel
+	params := &slack.GetConversationsParameters{
+		Types:  []string{"public_channel", "private_channel", "mpim", "im"},
+		Limit:  200,
+		Cursor: "",
+	}
+
+	for {
+		channels, cursor, err := a.slack.GetConversations(params)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, channels...)
+		if cursor == "" {
+			break
+		}
+		params.Cursor = cursor
+	}
+
+	return all, nil
 }
