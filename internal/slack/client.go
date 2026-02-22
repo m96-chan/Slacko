@@ -213,6 +213,20 @@ func (c *Client) SearchMessages(query string, params slack.SearchParameters) (*s
 	return results, err
 }
 
+// GetPermalink returns the permalink URL for a message.
+func (c *Client) GetPermalink(channelID, timestamp string) (string, error) {
+	var permalink string
+	err := retryOnRateLimit(func() error {
+		var e error
+		permalink, e = c.api.GetPermalink(&slack.PermalinkParameters{
+			Channel: channelID,
+			Ts:      timestamp,
+		})
+		return e
+	})
+	return permalink, err
+}
+
 // ListPins returns all pinned items in a channel.
 func (c *Client) ListPins(channel string) ([]slack.Item, error) {
 	var items []slack.Item
@@ -236,4 +250,51 @@ func (c *Client) RemovePin(channel string, item slack.ItemRef) error {
 	return retryOnRateLimit(func() error {
 		return c.api.RemovePin(channel, item)
 	})
+}
+
+// GetConversationInfo returns detailed information about a conversation.
+func (c *Client) GetConversationInfo(channelID string) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := retryOnRateLimit(func() error {
+		var e error
+		ch, e = c.api.GetConversationInfo(&slack.GetConversationInfoInput{
+			ChannelID:         channelID,
+			IncludeNumMembers: true,
+		})
+		return e
+	})
+	return ch, err
+}
+
+// SetTopic sets the topic for a conversation.
+func (c *Client) SetTopic(channelID, topic string) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := retryOnRateLimit(func() error {
+		var e error
+		ch, e = c.api.SetTopicOfConversation(channelID, topic)
+		return e
+	})
+	return ch, err
+}
+
+// SetPurpose sets the purpose for a conversation.
+func (c *Client) SetPurpose(channelID, purpose string) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := retryOnRateLimit(func() error {
+		var e error
+		ch, e = c.api.SetPurposeOfConversation(channelID, purpose)
+		return e
+	})
+	return ch, err
+}
+
+// LeaveConversation leaves a conversation.
+func (c *Client) LeaveConversation(channelID string) (bool, error) {
+	var notInChannel bool
+	err := retryOnRateLimit(func() error {
+		var e error
+		notInChannel, e = c.api.LeaveConversation(channelID)
+		return e
+	})
+	return notInChannel, err
 }

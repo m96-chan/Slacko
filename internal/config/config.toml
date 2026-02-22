@@ -26,6 +26,8 @@ enabled = false
 
 [typing_indicator]
 enabled = true
+send = true
+receive = true
 
 [threads]
 show_inline = false
@@ -48,6 +50,7 @@ command_mode = "Rune[:]"
 mark_read = "Rune[m]"
 mark_all_read = "Rune[M]"
 pinned_messages = "Rune[P]"
+channel_info = "Ctrl+O"
 
 [keybinds.channels_tree]
 up = "Rune[k]"
@@ -57,6 +60,7 @@ bottom = "Rune[G]"
 select_current = "Enter"
 collapse = "Rune[c]"
 move_to_parent = "Rune[p]"
+copy_channel_id = "Rune[i]"
 
 [keybinds.messages_list]
 select_current = "Enter"
@@ -69,6 +73,7 @@ reactions = "Rune[+]"
 remove_reaction = "Rune[-]"
 thread = "Rune[t]"
 yank = "Rune[y]"
+copy_permalink = "Rune[u]"
 open_file = "Rune[o]"
 pin = "Rune[p]"
 cancel = "Escape"
@@ -111,6 +116,12 @@ close = "Escape"
 up = "Ctrl+P"
 down = "Ctrl+N"
 select = "Enter"
+
+[keybinds.channel_info_panel]
+close = "Escape"
+set_topic = "Rune[t]"
+set_purpose = "Rune[p]"
+leave = "Rune[l]"
 
 [theme]
 preset = "default"

@@ -35,6 +35,12 @@ type OnFileOpenRequestFunc func(channelID string, file slack.File)
 // OnPinRequestFunc is called when the user wants to pin or unpin a message.
 type OnPinRequestFunc func(channelID, timestamp string, pinned bool)
 
+// OnYankFunc is called when the user wants to copy message text.
+type OnYankFunc func(text string)
+
+// OnCopyPermalinkFunc is called when the user wants to copy a message permalink.
+type OnCopyPermalinkFunc func(channelID, timestamp string)
+
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
@@ -54,6 +60,8 @@ type MessagesList struct {
 	onReactionRemoveRequest OnReactionRemoveRequestFunc
 	onFileOpenRequest      OnFileOpenRequestFunc
 	onPinRequest           OnPinRequestFunc
+	onYank                 OnYankFunc
+	onCopyPermalink        OnCopyPermalinkFunc
 	lastReadTS             string // last-read timestamp for "New messages" separator
 }
 
@@ -142,6 +150,16 @@ func (ml *MessagesList) SetOnFileOpenRequest(fn OnFileOpenRequestFunc) {
 // SetOnPinRequest sets the callback for pin/unpin requests.
 func (ml *MessagesList) SetOnPinRequest(fn OnPinRequestFunc) {
 	ml.onPinRequest = fn
+}
+
+// SetOnYank sets the callback for yanking (copying) message text.
+func (ml *MessagesList) SetOnYank(fn OnYankFunc) {
+	ml.onYank = fn
+}
+
+// SetOnCopyPermalink sets the callback for copying a message permalink.
+func (ml *MessagesList) SetOnCopyPermalink(fn OnCopyPermalinkFunc) {
+	ml.onCopyPermalink = fn
 }
 
 // SetPinnedMessages sets the full set of pinned message timestamps for the current channel.
@@ -563,6 +581,19 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onPinRequest != nil {
 			msg := ml.messages[ml.selectedIdx]
 			ml.onPinRequest(ml.channelID, msg.Timestamp, !ml.pinnedSet[msg.Timestamp])
+			return nil
+		}
+
+	case ml.cfg.Keybinds.MessagesList.Yank:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onYank != nil {
+			ml.onYank(ml.messages[ml.selectedIdx].Text)
+			return nil
+		}
+
+	case ml.cfg.Keybinds.MessagesList.CopyPermalink:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onCopyPermalink != nil {
+			msg := ml.messages[ml.selectedIdx]
+			ml.onCopyPermalink(ml.channelID, msg.Timestamp)
 			return nil
 		}
 	}

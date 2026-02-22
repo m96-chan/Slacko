@@ -37,7 +37,8 @@ type View struct {
 	ReactionsPicker *ReactionsPicker
 	FilePicker      *FilePicker
 	SearchPicker    *SearchPicker
-	PinsPicker      *PinsPicker
+	PinsPicker       *PinsPicker
+	ChannelInfoPanel *ChannelInfoPanel
 
 	outerFlex        *tview.Flex
 	contentFlex      *tview.Flex
@@ -47,10 +48,12 @@ type View struct {
 	fileModal         tview.Primitive
 	searchModal       tview.Primitive
 	pinsModal         tview.Primitive
+	channelInfoModal  tview.Primitive
 	activePanel       Panel
 	onMarkRead        func()
 	onMarkAllRead     func()
 	onPinnedMessages  func()
+	onChannelInfo     func()
 	channelsVisible   bool
 	threadVisible     bool
 	pickerVisible     bool
@@ -58,6 +61,7 @@ type View struct {
 	filePickerVisible bool
 	searchVisible     bool
 	pinsVisible       bool
+	channelInfoVisible bool
 }
 
 // New creates the main chat view with the full flex layout.
@@ -208,6 +212,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Channel info panel (modal overlay).
+	v.ChannelInfoPanel = NewChannelInfoPanel(cfg)
+	v.ChannelInfoPanel.SetOnClose(func() {
+		v.HideChannelInfo()
+	})
+
+	// Centered modal wrapper for the channel info panel.
+	v.channelInfoModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.ChannelInfoPanel, 60, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Pages: main layout + modal overlays.
 	v.Pages = tview.NewPages().
 		AddPage("main", v.outerFlex, true, true)
@@ -237,6 +257,11 @@ func (v *View) SetOnMarkAllRead(fn func()) {
 // SetOnPinnedMessages sets the callback invoked when the user opens the pinned messages popup.
 func (v *View) SetOnPinnedMessages(fn func()) {
 	v.onPinnedMessages = fn
+}
+
+// SetOnChannelInfo sets the callback invoked when the user opens the channel info panel.
+func (v *View) SetOnChannelInfo(fn func()) {
+	v.onChannelInfo = fn
 }
 
 // FocusPanel sets focus to the given panel and updates border colors.
@@ -286,8 +311,21 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 		return nil
 	}
 
+	// Toggle channel info (Ctrl+O — non-rune, always works).
+	if name == v.cfg.Keybinds.ChannelInfo {
+		if v.channelInfoVisible {
+			v.HideChannelInfo()
+		} else {
+			v.ShowChannelInfo()
+			if v.onChannelInfo != nil {
+				v.onChannelInfo()
+			}
+		}
+		return nil
+	}
+
 	// When a modal is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.channelInfoVisible {
 		return event
 	}
 
@@ -422,6 +460,21 @@ func (v *View) ShowPinsPicker() {
 func (v *View) HidePinsPicker() {
 	v.pinsVisible = false
 	v.Pages.RemovePage("pins")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowChannelInfo shows the channel info panel modal overlay.
+func (v *View) ShowChannelInfo() {
+	v.channelInfoVisible = true
+	v.ChannelInfoPanel.Reset()
+	v.Pages.AddPage("channelinfo", v.channelInfoModal, true, true)
+	v.app.SetFocus(v.ChannelInfoPanel.content)
+}
+
+// HideChannelInfo hides the channel info panel and restores focus.
+func (v *View) HideChannelInfo() {
+	v.channelInfoVisible = false
+	v.Pages.RemovePage("channelinfo")
 	v.FocusPanel(v.activePanel)
 }
 

@@ -17,6 +17,7 @@ type Keybinds struct {
 	MarkRead        string `toml:"mark_read"`
 	MarkAllRead     string `toml:"mark_all_read"`
 	PinnedMessages  string `toml:"pinned_messages"`
+	ChannelInfo     string `toml:"channel_info"`
 
 	ChannelsTree   ChannelsTreeKeybinds   `toml:"channels_tree"`
 	MessagesList   MessagesListKeybinds   `toml:"messages_list"`
@@ -25,7 +26,8 @@ type Keybinds struct {
 	ChannelsPicker ChannelsPickerKeybinds `toml:"channels_picker"`
 	FilePicker     FilePickerKeybinds     `toml:"file_picker"`
 	SearchPicker   SearchPickerKeybinds   `toml:"search_picker"`
-	PinsPicker     PinsPickerKeybinds     `toml:"pins_picker"`
+	PinsPicker        PinsPickerKeybinds     `toml:"pins_picker"`
+	ChannelInfoPanel  ChannelInfoKeybinds    `toml:"channel_info_panel"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -37,6 +39,7 @@ type ChannelsTreeKeybinds struct {
 	SelectCurrent string `toml:"select_current"`
 	Collapse      string `toml:"collapse"`
 	MoveToParent  string `toml:"move_to_parent"`
+	CopyChannelID string `toml:"copy_channel_id"`
 }
 
 // MessagesListKeybinds holds keybindings for the messages list panel.
@@ -53,6 +56,7 @@ type MessagesListKeybinds struct {
 	RemoveReaction  string `toml:"remove_reaction"`
 	Thread          string `toml:"thread"`
 	Yank            string `toml:"yank"`
+	CopyPermalink   string `toml:"copy_permalink"`
 	OpenFile        string `toml:"open_file"`
 	Pin             string `toml:"pin"`
 	Cancel          string `toml:"cancel"`
@@ -107,4 +111,12 @@ type PinsPickerKeybinds struct {
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`
 	Select string `toml:"select"`
+}
+
+// ChannelInfoKeybinds holds keybindings for the channel info panel.
+type ChannelInfoKeybinds struct {
+	Close      string `toml:"close"`
+	SetTopic   string `toml:"set_topic"`
+	SetPurpose string `toml:"set_purpose"`
+	Leave      string `toml:"leave"`
 }

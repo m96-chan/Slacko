@@ -12,7 +12,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
+	"time"
 	"syscall"
 
 	"github.com/gdamore/tcell/v2"
@@ -20,10 +22,12 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	gokeyring "github.com/zalando/go-keyring"
 
+	"github.com/m96-chan/Slacko/internal/clipboard"
 	"github.com/m96-chan/Slacko/internal/config"
 	"github.com/m96-chan/Slacko/internal/keyring"
 	"github.com/m96-chan/Slacko/internal/notifications"
 	slackclient "github.com/m96-chan/Slacko/internal/slack"
+	"github.com/m96-chan/Slacko/internal/typing"
 	"github.com/m96-chan/Slacko/internal/ui/chat"
 	"github.com/m96-chan/Slacko/internal/ui/keys"
 	"github.com/m96-chan/Slacko/internal/ui/login"
@@ -44,6 +48,7 @@ type App struct {
 	lastRead       map[string]string // channelID → last-read timestamp
 	pinnedMsgs     map[string]map[string]bool // channelID → set of pinned timestamps
 	currentChannel string
+	typingTracker  *typing.Tracker
 	mu             sync.Mutex
 }
 
@@ -268,6 +273,81 @@ func (a *App) showMain() {
 		}()
 	})
 
+	// Wire clipboard: yank (copy message text).
+	a.chatView.MessagesList.SetOnYank(func(text string) {
+		if err := clipboard.WriteText(text); err != nil {
+			slog.Error("failed to copy to clipboard", "error", err)
+			return
+		}
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.StatusBar.SetTypingIndicator("Copied message text")
+		})
+		go func() {
+			<-time.After(2 * time.Second)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.StatusBar.SetTypingIndicator("")
+			})
+		}()
+	})
+
+	// Wire clipboard: copy permalink.
+	a.chatView.MessagesList.SetOnCopyPermalink(func(channelID, timestamp string) {
+		go func() {
+			permalink, err := a.slack.GetPermalink(channelID, timestamp)
+			if err != nil {
+				slog.Error("failed to get permalink", "channel", channelID, "error", err)
+				return
+			}
+			if err := clipboard.WriteText(permalink); err != nil {
+				slog.Error("failed to copy permalink to clipboard", "error", err)
+				return
+			}
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.StatusBar.SetTypingIndicator("Copied permalink")
+			})
+			<-time.After(2 * time.Second)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.StatusBar.SetTypingIndicator("")
+			})
+		}()
+	})
+
+	// Wire clipboard: copy channel ID.
+	a.chatView.ChannelsTree.SetOnCopyChannelID(func(channelID string) {
+		if err := clipboard.WriteText(channelID); err != nil {
+			slog.Error("failed to copy channel ID to clipboard", "error", err)
+			return
+		}
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.StatusBar.SetTypingIndicator("Copied channel ID")
+		})
+		go func() {
+			<-time.After(2 * time.Second)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.StatusBar.SetTypingIndicator("")
+			})
+		}()
+	})
+
+	// Wire typing indicators.
+	a.typingTracker = typing.NewTracker(func(channelID string) {
+		a.mu.Lock()
+		isCurrent := channelID == a.currentChannel
+		a.mu.Unlock()
+		if isCurrent && a.Config.TypingIndicator.Receive {
+			status := a.typingTracker.FormatStatus(channelID)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.StatusBar.SetTypingIndicator(status)
+			})
+		}
+	})
+	if a.Config.TypingIndicator.Send {
+		a.chatView.MessageInput.SetOnTyping(func(channelID string) {
+			// Typing send is a no-op until RTM support is added.
+			slog.Debug("typing indicator send", "channel", channelID)
+		})
+	}
+
 	// Wire pinned messages popup: fetch pins when user opens the popup.
 	a.chatView.SetOnPinnedMessages(func() {
 		a.mu.Lock()
@@ -278,6 +358,28 @@ func (a *App) showMain() {
 		}
 		a.chatView.PinsPicker.SetStatus("Loading...")
 		go a.loadPinnedMessages(ch)
+	})
+
+	// Wire channel info panel.
+	a.chatView.SetOnChannelInfo(func() {
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch == "" {
+			return
+		}
+		a.chatView.ChannelInfoPanel.SetStatus("Loading...")
+		go a.loadChannelInfo(ch)
+	})
+	a.chatView.ChannelInfoPanel.SetOnSetTopic(func(channelID string) {
+		// Open editor for topic input using the external editor.
+		go a.editChannelField(channelID, "topic")
+	})
+	a.chatView.ChannelInfoPanel.SetOnSetPurpose(func(channelID string) {
+		go a.editChannelField(channelID, "purpose")
+	})
+	a.chatView.ChannelInfoPanel.SetOnLeave(func(channelID string) {
+		go a.leaveChannel(channelID)
 	})
 
 	// Wire mark-as-read keybinds.
@@ -480,6 +582,24 @@ func (a *App) showMain() {
 				})
 			}
 		},
+		OnTyping: func(evt *slackclient.TypingEvent) {
+			if a.typingTracker == nil || !a.Config.TypingIndicator.Receive {
+				return
+			}
+			a.mu.Lock()
+			userName := evt.UserID
+			if u, ok := a.users[evt.UserID]; ok {
+				if u.Profile.DisplayName != "" {
+					userName = u.Profile.DisplayName
+				} else if u.RealName != "" {
+					userName = u.RealName
+				} else if u.Name != "" {
+					userName = u.Name
+				}
+			}
+			a.mu.Unlock()
+			a.typingTracker.Add(evt.ChannelID, evt.UserID, userName)
+		},
 		OnUserStatusChanged: func(evt *slackevents.UserStatusChangedEvent) {
 			a.mu.Lock()
 			if u, ok := a.users[evt.User.ID]; ok {
@@ -598,6 +718,10 @@ func (a *App) onChannelSelected(channelID string) {
 
 	a.chatView.MessagesList.SetLastRead(lr)
 	a.chatView.MessageInput.SetChannel(channelID)
+	// Clear typing indicator for the new channel.
+	if a.typingTracker != nil {
+		a.chatView.StatusBar.SetTypingIndicator("")
+	}
 	go a.loadMessages(channelID)
 }
 
@@ -1028,6 +1152,168 @@ func (a *App) markAllChannelsRead() {
 			}
 		}
 	}
+}
+
+// loadChannelInfo fetches channel details and populates the info panel.
+func (a *App) loadChannelInfo(channelID string) {
+	ch, err := a.slack.GetConversationInfo(channelID)
+	if err != nil {
+		slog.Error("failed to fetch channel info", "channel", channelID, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.ChannelInfoPanel.SetStatus("Failed to load channel info")
+		})
+		return
+	}
+
+	// Resolve creator name.
+	a.mu.Lock()
+	creatorName := ch.Creator
+	if u, ok := a.users[ch.Creator]; ok {
+		if u.Profile.DisplayName != "" {
+			creatorName = u.Profile.DisplayName
+		} else if u.RealName != "" {
+			creatorName = u.RealName
+		} else if u.Name != "" {
+			creatorName = u.Name
+		}
+	}
+	a.mu.Unlock()
+
+	// Count pins from cached data.
+	a.mu.Lock()
+	pinCount := len(a.pinnedMsgs[channelID])
+	a.mu.Unlock()
+
+	data := chat.ChannelInfoData{
+		ChannelID:   channelID,
+		Name:        ch.Name,
+		Description: ch.Purpose.Value,
+		Topic:       ch.Topic.Value,
+		Purpose:     ch.Purpose.Value,
+		Creator:     creatorName,
+		Created:     ch.Created.Time(),
+		NumMembers:  ch.NumMembers,
+		NumPins:     pinCount,
+		IsArchived:  ch.IsArchived,
+		IsPrivate:   ch.IsPrivate,
+		IsDM:        ch.IsIM,
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.ChannelInfoPanel.SetData(data)
+		a.chatView.ChannelInfoPanel.SetStatus(" [t]opic  [p]urpose  [l]eave  [Esc]close")
+	})
+}
+
+// editChannelField opens the external editor to set a channel's topic or purpose.
+func (a *App) editChannelField(channelID, field string) {
+	// Create a temp file with the current value.
+	a.mu.Lock()
+	var current string
+	for _, ch := range a.channels {
+		if ch.ID == channelID {
+			switch field {
+			case "topic":
+				current = ch.Topic.Value
+			case "purpose":
+				current = ch.Purpose.Value
+			}
+			break
+		}
+	}
+	a.mu.Unlock()
+
+	tmpFile, err := os.CreateTemp("", fmt.Sprintf("slacko-%s-*.txt", field))
+	if err != nil {
+		slog.Error("failed to create temp file", "error", err)
+		return
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmpFile.WriteString(current); err != nil {
+		tmpFile.Close()
+		slog.Error("failed to write temp file", "error", err)
+		return
+	}
+	tmpFile.Close()
+
+	// Suspend TUI and open editor.
+	a.tview.Suspend(func() {
+		cmd := exec.Command(a.Config.Editor, tmpPath)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			slog.Error("editor failed", "error", err)
+			return
+		}
+	})
+
+	// Read the edited value.
+	data, err := os.ReadFile(tmpPath)
+	if err != nil {
+		slog.Error("failed to read temp file", "error", err)
+		return
+	}
+	newValue := strings.TrimSpace(string(data))
+
+	if newValue == current {
+		return
+	}
+
+	// Update via API.
+	switch field {
+	case "topic":
+		if _, err := a.slack.SetTopic(channelID, newValue); err != nil {
+			slog.Error("failed to set topic", "channel", channelID, "error", err)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ChannelInfoPanel.SetStatus("Failed to set topic")
+			})
+			return
+		}
+	case "purpose":
+		if _, err := a.slack.SetPurpose(channelID, newValue); err != nil {
+			slog.Error("failed to set purpose", "channel", channelID, "error", err)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ChannelInfoPanel.SetStatus("Failed to set purpose")
+			})
+			return
+		}
+	}
+
+	// Refresh the info panel.
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.SetChannelHeader(a.chatView.ChannelInfoPanel.Data().Name, newValue)
+	})
+	go a.loadChannelInfo(channelID)
+}
+
+// leaveChannel leaves a channel and updates the UI.
+func (a *App) leaveChannel(channelID string) {
+	_, err := a.slack.LeaveConversation(channelID)
+	if err != nil {
+		slog.Error("failed to leave channel", "channel", channelID, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.ChannelInfoPanel.SetStatus("Failed to leave channel")
+		})
+		return
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.HideChannelInfo()
+		a.chatView.ChannelsTree.RemoveChannel(channelID)
+	})
+
+	// Remove from cached channels.
+	a.mu.Lock()
+	for i, ch := range a.channels {
+		if ch.ID == channelID {
+			a.channels = append(a.channels[:i], a.channels[i+1:]...)
+			break
+		}
+	}
+	a.mu.Unlock()
 }
 
 // fetchAllChannels retrieves all conversations with pagination.

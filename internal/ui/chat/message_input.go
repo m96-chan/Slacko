@@ -3,10 +3,12 @@ package chat
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/m96-chan/Slacko/internal/clipboard"
 	"github.com/m96-chan/Slacko/internal/config"
 	"github.com/m96-chan/Slacko/internal/ui/keys"
 )
@@ -47,6 +49,8 @@ type MessageInput struct {
 	onHideAutocomplete func()
 
 	onOpenFilePicker func()
+	onTyping         func(channelID string) // called when user is actively typing
+	lastTypingSent   time.Time              // for debouncing typing events
 }
 
 // NewMessageInput creates a new message input component.
@@ -105,6 +109,11 @@ func (mi *MessageInput) SetOnHideAutocomplete(fn func()) {
 // SetOnOpenFilePicker sets the callback for opening the file picker.
 func (mi *MessageInput) SetOnOpenFilePicker(fn func()) {
 	mi.onOpenFilePicker = fn
+}
+
+// SetOnTyping sets the callback for typing indicator emission.
+func (mi *MessageInput) SetOnTyping(fn func(channelID string)) {
+	mi.onTyping = fn
 }
 
 // SetChannel sets the active channel for outgoing messages.
@@ -184,6 +193,14 @@ func (mi *MessageInput) handleInput(event *tcell.EventKey) *tcell.EventKey {
 		}
 		return nil
 
+	case mi.cfg.Keybinds.MessageInput.Paste:
+		text, err := clipboard.ReadText()
+		if err == nil && text != "" {
+			current := mi.GetText()
+			mi.SetText(current+text, true)
+		}
+		return nil
+
 	case mi.cfg.Keybinds.MessageInput.Cancel:
 		if mi.mode != InputModeNormal {
 			mi.cancelMode()
@@ -227,6 +244,15 @@ func (mi *MessageInput) send() {
 
 // onTextChanged detects autocomplete triggers after each text change.
 func (mi *MessageInput) onTextChanged() {
+	// Emit typing indicator (debounced to every 3 seconds).
+	if mi.onTyping != nil && mi.channelID != "" {
+		text := mi.GetText()
+		if text != "" && time.Since(mi.lastTypingSent) > 3*time.Second {
+			mi.lastTypingSent = time.Now()
+			mi.onTyping(mi.channelID)
+		}
+	}
+
 	if mi.mentionsList == nil {
 		return
 	}

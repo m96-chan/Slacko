@@ -33,16 +33,20 @@ type nodeRef struct {
 // OnChannelSelectedFunc is called when the user selects a channel.
 type OnChannelSelectedFunc func(channelID string)
 
+// OnCopyChannelIDFunc is called when the user wants to copy a channel ID.
+type OnCopyChannelIDFunc func(channelID string)
+
 // ChannelsTree is a tree view that categorises channels into sections.
 type ChannelsTree struct {
 	*tview.TreeView
-	cfg        *config.Config
-	root       *tview.TreeNode
-	sections   map[ChannelType]*tview.TreeNode
-	nodeIndex    map[string]*tview.TreeNode  // channelID → node
-	channelIDs   map[*tview.TreeNode]string  // node → channelID (reverse)
-	unreadCounts map[string]int              // channelID → unread count
-	onSelected   OnChannelSelectedFunc
+	cfg            *config.Config
+	root           *tview.TreeNode
+	sections       map[ChannelType]*tview.TreeNode
+	nodeIndex      map[string]*tview.TreeNode  // channelID → node
+	channelIDs     map[*tview.TreeNode]string  // node → channelID (reverse)
+	unreadCounts   map[string]int              // channelID → unread count
+	onSelected     OnChannelSelectedFunc
+	onCopyChannelID OnCopyChannelIDFunc
 }
 
 // NewChannelsTree creates a tree with four section headers.
@@ -92,6 +96,11 @@ func NewChannelsTree(cfg *config.Config, onSelected OnChannelSelectedFunc) *Chan
 // SetOnChannelSelected sets the callback for channel selection.
 func (ct *ChannelsTree) SetOnChannelSelected(fn OnChannelSelectedFunc) {
 	ct.onSelected = fn
+}
+
+// SetOnCopyChannelID sets the callback for copying a channel ID.
+func (ct *ChannelsTree) SetOnCopyChannelID(fn OnCopyChannelIDFunc) {
+	ct.onCopyChannelID = fn
 }
 
 // Populate clears and rebuilds the tree from the given channel/user data.
@@ -268,6 +277,16 @@ func (ct *ChannelsTree) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			}
 		}
 		return nil
+
+	case ct.cfg.Keybinds.ChannelsTree.CopyChannelID:
+		current := ct.GetCurrentNode()
+		if current == nil {
+			return event
+		}
+		if chID, ok := ct.channelIDs[current]; ok && ct.onCopyChannelID != nil {
+			ct.onCopyChannelID(chID)
+			return nil
+		}
 	}
 
 	return event

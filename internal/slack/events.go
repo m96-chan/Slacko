@@ -9,6 +9,14 @@ import (
 	"github.com/slack-go/slack/socketmode"
 )
 
+// TypingEvent represents a user_typing event.
+// Note: user_typing is an RTM-only event. This struct is provided
+// so the infrastructure is ready when RTM support is added.
+type TypingEvent struct {
+	ChannelID string
+	UserID    string
+}
+
 // EventHandler holds typed callback fields — one per event kind.
 // UI components register by setting the relevant field(s).
 // Nil callbacks are silently skipped.
@@ -32,6 +40,7 @@ type EventHandler struct {
 	OnPinRemoved          func(*slackevents.PinRemovedEvent)
 	OnFileShared          func(*slackevents.FileSharedEvent)
 	OnUserStatusChanged   func(*slackevents.UserStatusChangedEvent)
+	OnTyping              func(*TypingEvent) // RTM-only; included for future support
 	OnConnected           func()
 	OnDisconnected        func()
 	OnError               func(error)

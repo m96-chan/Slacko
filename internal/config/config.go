@@ -65,9 +65,11 @@ type NotificationSound struct {
 	Enabled bool `toml:"enabled"`
 }
 
-// TypingIndicator controls the typing indicator display.
+// TypingIndicator controls typing indicator behavior.
 type TypingIndicator struct {
 	Enabled bool `toml:"enabled"`
+	Send    bool `toml:"send"`
+	Receive bool `toml:"receive"`
 }
 
 // Threads controls thread display behavior.
