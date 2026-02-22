@@ -113,6 +113,7 @@ down = "Ctrl+N"
 select = "Enter"
 
 [theme]
+preset = "default"
 
 [theme.border]
 [theme.border.focused]
@@ -159,6 +160,32 @@ attributes = "reverse"
 [theme.messages_list.reply]
 foreground = "cyan"
 
+[theme.messages_list.system_message]
+foreground = "gray"
+attributes = "dim"
+
+[theme.messages_list.edited_indicator]
+foreground = "gray"
+attributes = "dim"
+
+[theme.messages_list.pin_indicator]
+foreground = "yellow"
+
+[theme.messages_list.file_attachment]
+foreground = "blue"
+
+[theme.messages_list.reaction_self]
+foreground = "yellow"
+
+[theme.messages_list.reaction_other]
+foreground = "gray"
+
+[theme.messages_list.date_separator]
+foreground = "gray"
+
+[theme.messages_list.new_msg_separator]
+foreground = "red"
+
 [theme.message_input]
 [theme.message_input.text]
 foreground = "white"
@@ -166,6 +193,65 @@ foreground = "white"
 [theme.message_input.placeholder]
 foreground = "gray"
 attributes = "dim"
+
+[theme.thread_view]
+[theme.thread_view.author]
+foreground = "green"
+attributes = "bold"
+
+[theme.thread_view.timestamp]
+foreground = "gray"
+
+[theme.thread_view.parent_label]
+foreground = "gray"
+
+[theme.thread_view.separator]
+foreground = "gray"
+
+[theme.thread_view.edited_indicator]
+foreground = "gray"
+attributes = "dim"
+
+[theme.thread_view.file_attachment]
+foreground = "blue"
+
+[theme.thread_view.reaction]
+foreground = "gray"
+
+[theme.markdown_style]
+[theme.markdown_style.user_mention]
+foreground = "yellow"
+attributes = "bold"
+
+[theme.markdown_style.channel_mention]
+foreground = "cyan"
+attributes = "bold"
+
+[theme.markdown_style.special_mention]
+foreground = "yellow"
+attributes = "bold|underline"
+
+[theme.markdown_style.link]
+foreground = "blue"
+attributes = "underline"
+
+[theme.markdown_style.inline_code]
+foreground = "gray"
+
+[theme.markdown_style.code_fence]
+foreground = "gray"
+
+[theme.markdown_style.blockquote_mark]
+foreground = "gray"
+
+[theme.markdown_style.blockquote_text]
+attributes = "dim"
+
+[theme.modal]
+[theme.modal.input_background]
+
+[theme.modal.secondary_text]
+foreground = "gray"
 
 [theme.status_bar]
 [theme.status_bar.text]

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"os"
@@ -113,6 +114,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
+	// Phase 3: resolve theme preset — load the built-in preset as the base,
+	// then re-decode the user's [theme] section on top.
+	cfg.Theme = resolveTheme(path, cfg.Theme)
+
 	applyDefaults(&cfg)
 
 	if err := validate(&cfg); err != nil {
@@ -157,4 +162,26 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("autocomplete_limit must be >= 0, got %d", cfg.AutocompleteLimit)
 	}
 	return nil
+}
+
+// resolveTheme loads the built-in preset as a base theme, then re-decodes the
+// user's config file on top so that only user-specified fields override the preset.
+func resolveTheme(configPath string, userTheme Theme) Theme {
+	base := BuiltinTheme(userTheme.Preset)
+	base.Preset = userTheme.Preset
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return base
+	}
+
+	type themeOnly struct {
+		Theme Theme `toml:"theme"`
+	}
+	wrapper := themeOnly{Theme: base}
+	if _, err := toml.NewDecoder(bytes.NewReader(data)).Decode(&wrapper); err == nil {
+		wrapper.Theme.Preset = userTheme.Preset
+		return wrapper.Theme
+	}
+	return base
 }

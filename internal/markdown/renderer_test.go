@@ -17,6 +17,8 @@ var testChannels = map[string]string{
 	"C2": "random",
 }
 
+var defColors = DefaultMarkdownColors()
+
 func TestRender_Disabled(t *testing.T) {
 	tests := []struct {
 		name string
@@ -39,7 +41,7 @@ func TestRender_Disabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Render(tt.text, testUsers, testChannels, false, "")
+			got := Render(tt.text, testUsers, testChannels, false, "", defColors)
 			if got != tt.want {
 				t.Errorf("Render(%q, disabled) = %q, want %q", tt.text, got, tt.want)
 			}
@@ -48,7 +50,7 @@ func TestRender_Disabled(t *testing.T) {
 }
 
 func TestRender_Bold(t *testing.T) {
-	got := Render("hello *world*", nil, nil, true, "")
+	got := Render("hello *world*", nil, nil, true, "", defColors)
 	want := "hello [::b]world[::-]"
 	if got != want {
 		t.Errorf("bold: got %q, want %q", got, want)
@@ -56,7 +58,7 @@ func TestRender_Bold(t *testing.T) {
 }
 
 func TestRender_Italic(t *testing.T) {
-	got := Render("hello _world_", nil, nil, true, "")
+	got := Render("hello _world_", nil, nil, true, "", defColors)
 	want := "hello [::i]world[::-]"
 	if got != want {
 		t.Errorf("italic: got %q, want %q", got, want)
@@ -64,7 +66,7 @@ func TestRender_Italic(t *testing.T) {
 }
 
 func TestRender_Strikethrough(t *testing.T) {
-	got := Render("hello ~world~", nil, nil, true, "")
+	got := Render("hello ~world~", nil, nil, true, "", defColors)
 	want := "hello [::s]world[::-]"
 	if got != want {
 		t.Errorf("strikethrough: got %q, want %q", got, want)
@@ -72,7 +74,7 @@ func TestRender_Strikethrough(t *testing.T) {
 }
 
 func TestRender_InlineCode(t *testing.T) {
-	got := Render("use `fmt.Println`", nil, nil, true, "")
+	got := Render("use `fmt.Println`", nil, nil, true, "", defColors)
 	want := "use [gray]`fmt.Println`[-]"
 	if got != want {
 		t.Errorf("inline code: got %q, want %q", got, want)
@@ -80,7 +82,7 @@ func TestRender_InlineCode(t *testing.T) {
 }
 
 func TestRender_InlineCode_NoFormattingInside(t *testing.T) {
-	got := Render("`*not bold*`", nil, nil, true, "")
+	got := Render("`*not bold*`", nil, nil, true, "", defColors)
 	// The inline code regex matches first, so *not bold* should be inside code style
 	// and not processed by bold regex.
 	if strings.Contains(got, "[::b]") {
@@ -92,7 +94,7 @@ func TestRender_InlineCode_NoFormattingInside(t *testing.T) {
 }
 
 func TestRender_UserMention(t *testing.T) {
-	got := Render("hi <@U1>!", testUsers, nil, true, "")
+	got := Render("hi <@U1>!", testUsers, nil, true, "", defColors)
 	want := "hi [yellow::b]@Alice[-::-]!"
 	if got != want {
 		t.Errorf("user mention: got %q, want %q", got, want)
@@ -100,7 +102,7 @@ func TestRender_UserMention(t *testing.T) {
 }
 
 func TestRender_UserMention_WithLabel(t *testing.T) {
-	got := Render("hi <@U1|alice>!", testUsers, nil, true, "")
+	got := Render("hi <@U1|alice>!", testUsers, nil, true, "", defColors)
 	want := "hi [yellow::b]@alice[-::-]!"
 	if got != want {
 		t.Errorf("user mention with label: got %q, want %q", got, want)
@@ -108,7 +110,7 @@ func TestRender_UserMention_WithLabel(t *testing.T) {
 }
 
 func TestRender_UserMention_Unknown(t *testing.T) {
-	got := Render("hi <@U999>!", testUsers, nil, true, "")
+	got := Render("hi <@U999>!", testUsers, nil, true, "", defColors)
 	want := "hi [yellow::b]@U999[-::-]!"
 	if got != want {
 		t.Errorf("unknown user mention: got %q, want %q", got, want)
@@ -116,7 +118,7 @@ func TestRender_UserMention_Unknown(t *testing.T) {
 }
 
 func TestRender_ChannelMention(t *testing.T) {
-	got := Render("see <#C1>", nil, testChannels, true, "")
+	got := Render("see <#C1>", nil, testChannels, true, "", defColors)
 	want := "see [cyan::b]#general[-::-]"
 	if got != want {
 		t.Errorf("channel mention: got %q, want %q", got, want)
@@ -124,7 +126,7 @@ func TestRender_ChannelMention(t *testing.T) {
 }
 
 func TestRender_ChannelMention_WithLabel(t *testing.T) {
-	got := Render("see <#C1|general>", nil, testChannels, true, "")
+	got := Render("see <#C1|general>", nil, testChannels, true, "", defColors)
 	want := "see [cyan::b]#general[-::-]"
 	if got != want {
 		t.Errorf("channel mention with label: got %q, want %q", got, want)
@@ -145,7 +147,7 @@ func TestRender_SpecialMention(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Render(tt.text, nil, nil, true, "")
+			got := Render(tt.text, nil, nil, true, "", defColors)
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
@@ -154,7 +156,7 @@ func TestRender_SpecialMention(t *testing.T) {
 }
 
 func TestRender_Link(t *testing.T) {
-	got := Render("<https://example.com|Click here>", nil, nil, true, "")
+	got := Render("<https://example.com|Click here>", nil, nil, true, "", defColors)
 	want := "[blue::u]Click here[-::-]"
 	if got != want {
 		t.Errorf("link with label: got %q, want %q", got, want)
@@ -162,7 +164,7 @@ func TestRender_Link(t *testing.T) {
 }
 
 func TestRender_Link_NoLabel(t *testing.T) {
-	got := Render("<https://example.com>", nil, nil, true, "")
+	got := Render("<https://example.com>", nil, nil, true, "", defColors)
 	want := "[blue::u]https://example.com[-::-]"
 	if got != want {
 		t.Errorf("link without label: got %q, want %q", got, want)
@@ -170,7 +172,7 @@ func TestRender_Link_NoLabel(t *testing.T) {
 }
 
 func TestRender_Blockquote(t *testing.T) {
-	got := Render("> quoted text", nil, nil, true, "")
+	got := Render("> quoted text", nil, nil, true, "", defColors)
 	want := "[gray]▎[-] [::d]quoted text[::-]"
 	if got != want {
 		t.Errorf("blockquote: got %q, want %q", got, want)
@@ -178,7 +180,7 @@ func TestRender_Blockquote(t *testing.T) {
 }
 
 func TestRender_Blockquote_Empty(t *testing.T) {
-	got := Render(">", nil, nil, true, "")
+	got := Render(">", nil, nil, true, "", defColors)
 	want := "[gray]▎[-]"
 	if got != want {
 		t.Errorf("empty blockquote: got %q, want %q", got, want)
@@ -186,7 +188,7 @@ func TestRender_Blockquote_Empty(t *testing.T) {
 }
 
 func TestRender_Emoji(t *testing.T) {
-	got := Render("nice :thumbsup:", nil, nil, true, "")
+	got := Render("nice :thumbsup:", nil, nil, true, "", defColors)
 	want := "nice 👍"
 	if got != want {
 		t.Errorf("emoji: got %q, want %q", got, want)
@@ -194,7 +196,7 @@ func TestRender_Emoji(t *testing.T) {
 }
 
 func TestRender_Emoji_Unknown(t *testing.T) {
-	got := Render("nice :custom_emoji:", nil, nil, true, "")
+	got := Render("nice :custom_emoji:", nil, nil, true, "", defColors)
 	want := "nice :custom_emoji:"
 	if got != want {
 		t.Errorf("unknown emoji: got %q, want %q", got, want)
@@ -203,7 +205,7 @@ func TestRender_Emoji_Unknown(t *testing.T) {
 
 func TestRender_CodeBlock(t *testing.T) {
 	text := "```\nfmt.Println(\"hello\")\n```"
-	got := Render(text, nil, nil, true, "monokai")
+	got := Render(text, nil, nil, true, "monokai", defColors)
 
 	if !strings.Contains(got, "[gray]```[-]") {
 		t.Errorf("code block should have styled fences: got %q", got)
@@ -215,7 +217,7 @@ func TestRender_CodeBlock(t *testing.T) {
 
 func TestRender_CodeBlock_WithLang(t *testing.T) {
 	text := "```go\npackage main\n```"
-	got := Render(text, nil, nil, true, "monokai")
+	got := Render(text, nil, nil, true, "monokai", defColors)
 
 	if !strings.Contains(got, "[gray]```[-]") {
 		t.Errorf("code block should have styled fences: got %q", got)
@@ -227,7 +229,7 @@ func TestRender_CodeBlock_WithLang(t *testing.T) {
 
 func TestRender_Mixed(t *testing.T) {
 	text := "Hey <@U1>, check *this* out :fire:"
-	got := Render(text, testUsers, nil, true, "")
+	got := Render(text, testUsers, nil, true, "", defColors)
 
 	if !strings.Contains(got, "[yellow::b]@Alice[-::-]") {
 		t.Errorf("should contain styled user mention: got %q", got)
@@ -242,7 +244,7 @@ func TestRender_Mixed(t *testing.T) {
 
 func TestRender_TviewEscape(t *testing.T) {
 	// Text with tview color tag syntax should be escaped.
-	got := Render("[red]not a color tag[-]", nil, nil, true, "")
+	got := Render("[red]not a color tag[-]", nil, nil, true, "", defColors)
 	// tview.Escape converts [ followed by content ] into escaped form.
 	if strings.Contains(got, "[red]") && !strings.Contains(got, "[]") {
 		t.Errorf("tview tags in user text should be escaped: got %q", got)
@@ -251,7 +253,7 @@ func TestRender_TviewEscape(t *testing.T) {
 
 func TestRender_MultipleLines(t *testing.T) {
 	text := "*bold line*\n_italic line_"
-	got := Render(text, nil, nil, true, "")
+	got := Render(text, nil, nil, true, "", defColors)
 
 	lines := strings.Split(got, "\n")
 	if len(lines) != 2 {
@@ -314,7 +316,7 @@ func TestLookupEmoji(t *testing.T) {
 
 func TestRender_Blockquote_MultiLine(t *testing.T) {
 	text := "> line 1\n> line 2\nnormal"
-	got := Render(text, nil, nil, true, "")
+	got := Render(text, nil, nil, true, "", defColors)
 
 	lines := strings.Split(got, "\n")
 	if len(lines) != 3 {
@@ -332,7 +334,7 @@ func TestRender_Blockquote_MultiLine(t *testing.T) {
 }
 
 func TestRender_EmptyText(t *testing.T) {
-	got := Render("", nil, nil, true, "")
+	got := Render("", nil, nil, true, "", defColors)
 	if got != "" {
 		t.Errorf("empty text should return empty: got %q", got)
 	}
@@ -342,7 +344,7 @@ func TestRender_UserMention_FallbackToName(t *testing.T) {
 	users := map[string]slack.User{
 		"U3": {ID: "U3", Name: "charlie"},
 	}
-	got := Render("<@U3>", users, nil, true, "")
+	got := Render("<@U3>", users, nil, true, "", defColors)
 	want := "[yellow::b]@charlie[-::-]"
 	if got != want {
 		t.Errorf("mention fallback to Name: got %q, want %q", got, want)

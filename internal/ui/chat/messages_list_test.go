@@ -11,6 +11,17 @@ import (
 	"github.com/m96-chan/Slacko/internal/markdown"
 )
 
+// testConfig returns a config with the default theme applied.
+func testConfig() *config.Config {
+	cfg := &config.Config{}
+	cfg.DateSeparator.Enabled = true
+	cfg.DateSeparator.Character = "─"
+	cfg.Timestamps.Enabled = true
+	cfg.Timestamps.Format = "3:04PM"
+	cfg.Theme = config.BuiltinTheme("default")
+	return cfg
+}
+
 func TestParseSlackTimestamp(t *testing.T) {
 	tests := []struct {
 		ts   string
@@ -37,20 +48,22 @@ func TestParseSlackTimestamp_Invalid(t *testing.T) {
 }
 
 func TestFormatDateSeparator(t *testing.T) {
-	result := formatDateSeparator("January 15, 2026", "─")
+	style := config.BuiltinTheme("default").MessagesList.DateSeparator
+	result := formatDateSeparator("January 15, 2026", "─", style)
 	if !strings.Contains(result, "January 15, 2026") {
 		t.Errorf("date separator should contain date, got %q", result)
 	}
 	if !strings.Contains(result, "─") {
 		t.Errorf("date separator should contain separator char, got %q", result)
 	}
-	if !strings.HasPrefix(result, "[gray]") {
-		t.Errorf("date separator should have gray color tag, got %q", result)
+	if !strings.Contains(result, style.Tag()) {
+		t.Errorf("date separator should have theme color tag, got %q", result)
 	}
 }
 
 func TestFormatDateSeparator_EmptyChar(t *testing.T) {
-	result := formatDateSeparator("January 15, 2026", "")
+	style := config.BuiltinTheme("default").MessagesList.DateSeparator
+	result := formatDateSeparator("January 15, 2026", "", style)
 	if !strings.Contains(result, "─") {
 		t.Errorf("empty char should default to ─, got %q", result)
 	}
@@ -108,7 +121,7 @@ func TestResolveUserMentions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := markdown.Render(tt.text, users, nil, false, "")
+			got := markdown.Render(tt.text, users, nil, false, "", markdown.DefaultMarkdownColors())
 			if got != tt.want {
 				t.Errorf("Render(%q, disabled) = %q, want %q", tt.text, got, tt.want)
 			}
@@ -170,11 +183,7 @@ func TestFormatFileSize(t *testing.T) {
 }
 
 func TestSetMessages(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	// History returns newest-first; SetMessages should reverse.
@@ -202,11 +211,7 @@ func TestSetMessages(t *testing.T) {
 }
 
 func TestAppendMessage(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	ml.SetMessages("C1", nil, map[string]slack.User{})
@@ -226,11 +231,7 @@ func TestAppendMessage(t *testing.T) {
 }
 
 func TestRemoveMessage(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	messages := []slack.Message{
@@ -249,11 +250,7 @@ func TestRemoveMessage(t *testing.T) {
 }
 
 func TestAddRemoveReaction(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	messages := []slack.Message{
@@ -289,11 +286,7 @@ func TestAddRemoveReaction(t *testing.T) {
 }
 
 func TestRender_MessageGrouping(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	// Two messages from same user within grouping window.
@@ -319,24 +312,26 @@ func TestRender_MessageGrouping(t *testing.T) {
 }
 
 func TestFormatNewMessagesSeparator(t *testing.T) {
-	result := formatNewMessagesSeparator("─")
+	style := config.BuiltinTheme("default").MessagesList.NewMsgSeparator
+	result := formatNewMessagesSeparator("─", style)
 	if !strings.Contains(result, "New messages") {
 		t.Errorf("separator should contain 'New messages', got %q", result)
 	}
-	if !strings.HasPrefix(result, "[red]") {
-		t.Errorf("separator should have red color tag, got %q", result)
+	if !strings.Contains(result, style.Tag()) {
+		t.Errorf("separator should have theme color tag, got %q", result)
 	}
 }
 
 func TestFormatNewMessagesSeparator_EmptyChar(t *testing.T) {
-	result := formatNewMessagesSeparator("")
+	style := config.BuiltinTheme("default").MessagesList.NewMsgSeparator
+	result := formatNewMessagesSeparator("", style)
 	if !strings.Contains(result, "─") {
 		t.Errorf("empty char should default to ─, got %q", result)
 	}
 }
 
 func TestLatestTimestamp(t *testing.T) {
-	cfg := &config.Config{}
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	// Empty messages.
@@ -357,7 +352,7 @@ func TestLatestTimestamp(t *testing.T) {
 }
 
 func TestSetLastRead(t *testing.T) {
-	cfg := &config.Config{}
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	ml.SetLastRead("1700000001.000000")
@@ -367,11 +362,7 @@ func TestSetLastRead(t *testing.T) {
 }
 
 func TestRender_NewMessagesSeparator(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	// Set lastRead to be before the second message.
@@ -393,11 +384,7 @@ func TestRender_NewMessagesSeparator(t *testing.T) {
 }
 
 func TestRender_NoSeparatorWhenAllRead(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.DateSeparator.Enabled = true
-	cfg.DateSeparator.Character = "─"
-	cfg.Timestamps.Enabled = true
-	cfg.Timestamps.Format = "3:04PM"
+	cfg := testConfig()
 	ml := NewMessagesList(cfg)
 
 	// Set lastRead to the latest message — no separator should appear.

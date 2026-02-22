@@ -24,6 +24,7 @@ type ThreadView struct {
 	*tview.Flex
 	app          *tview.Application
 	cfg          *config.Config
+	mdColors     markdown.MarkdownColors
 	repliesView  *tview.TextView
 	replyInput   *tview.TextArea
 	channelID    string
@@ -45,6 +46,7 @@ func NewThreadView(app *tview.Application, cfg *config.Config) *ThreadView {
 		selectedIdx:  -1,
 		users:        make(map[string]slack.User),
 		channelNames: make(map[string]string),
+		mdColors:     mdColorsFromTheme(cfg.Theme.Markdown),
 	}
 
 	tv.repliesView = tview.NewTextView()
@@ -185,6 +187,8 @@ func (tv *ThreadView) UpdateUsers(users map[string]slack.User) {
 func (tv *ThreadView) render() {
 	var b strings.Builder
 
+	theme := tv.cfg.Theme.ThreadView
+
 	for i, msg := range tv.messages {
 		// Region start.
 		fmt.Fprintf(&b, `["%s"]`, tview.Escape(msg.Timestamp))
@@ -207,22 +211,23 @@ func (tv *ThreadView) render() {
 			}
 		}
 		if i == 0 {
-			fmt.Fprintf(&b, "%s[green::b]%s[-::-]%s [gray](parent)[-]\n",
-				presencePrefix, tview.Escape(userName), statusSuffix)
+			fmt.Fprintf(&b, "%s%s%s%s%s %s(parent)%s\n",
+				presencePrefix, theme.Author.Tag(), tview.Escape(userName), theme.Author.Reset(),
+				statusSuffix, theme.ParentLabel.Tag(), theme.ParentLabel.Reset())
 		} else {
 			t := parseSlackTimestamp(msg.Timestamp)
 			if tv.cfg.Timestamps.Enabled {
 				timeStr := t.Format(tv.cfg.Timestamps.Format)
-				fmt.Fprintf(&b, "[gray]%s[-] ", timeStr)
+				fmt.Fprintf(&b, "%s%s%s ", theme.Timestamp.Tag(), timeStr, theme.Timestamp.Reset())
 			}
-			fmt.Fprintf(&b, "%s[green::b]%s[-::-]%s\n",
-				presencePrefix, tview.Escape(userName), statusSuffix)
+			fmt.Fprintf(&b, "%s%s%s%s%s\n",
+				presencePrefix, theme.Author.Tag(), tview.Escape(userName), theme.Author.Reset(), statusSuffix)
 		}
 
 		// Message text.
 		if msg.Text != "" {
 			rendered := markdown.Render(msg.Text, tv.users, tv.channelNames,
-				tv.cfg.Markdown.Enabled, tv.cfg.Markdown.SyntaxTheme)
+				tv.cfg.Markdown.Enabled, tv.cfg.Markdown.SyntaxTheme, tv.mdColors)
 			for _, line := range strings.Split(rendered, "\n") {
 				fmt.Fprintf(&b, "  %s\n", line)
 			}
@@ -230,14 +235,14 @@ func (tv *ThreadView) render() {
 
 		// Edited indicator.
 		if msg.Edited != nil && msg.Edited.Timestamp != "" {
-			b.WriteString("  [gray::d](edited)[-::-]\n")
+			fmt.Fprintf(&b, "  %s(edited)%s\n", theme.EditedIndicator.Tag(), theme.EditedIndicator.Reset())
 		}
 
 		// File attachments.
 		for _, f := range msg.Files {
 			icon := fileIcon(f.Name)
-			fmt.Fprintf(&b, "  [blue]%s %s (%s)[-]\n",
-				icon, tview.Escape(f.Name), formatFileSize(f.Size))
+			fmt.Fprintf(&b, "  %s%s %s (%s)%s\n",
+				theme.FileAttachment.Tag(), icon, tview.Escape(f.Name), formatFileSize(f.Size), theme.FileAttachment.Reset())
 		}
 
 		// Reactions.
@@ -247,7 +252,7 @@ func (tv *ThreadView) render() {
 				if j > 0 {
 					b.WriteString("  ")
 				}
-				fmt.Fprintf(&b, "[gray]:%s: %d[-]", tview.Escape(r.Name), r.Count)
+				fmt.Fprintf(&b, "%s:%s: %d%s", theme.Reaction.Tag(), tview.Escape(r.Name), r.Count, theme.Reaction.Reset())
 			}
 			b.WriteString("\n")
 		}
@@ -257,7 +262,7 @@ func (tv *ThreadView) render() {
 
 		// Separator after parent message.
 		if i == 0 {
-			b.WriteString("[gray]────────────────────────────[-]\n")
+			fmt.Fprintf(&b, "%s────────────────────────────%s\n", theme.Separator.Tag(), theme.Separator.Reset())
 		}
 	}
 

@@ -42,7 +42,7 @@ func NewFilePicker(cfg *config.Config) *FilePicker {
 
 	fp.input = tview.NewInputField()
 	fp.input.SetLabel(" Path: ")
-	fp.input.SetFieldBackgroundColor(tcell.ColorDefault)
+	fp.input.SetFieldBackgroundColor(cfg.Theme.Modal.InputBackground.Background())
 	fp.input.SetDoneFunc(fp.onInputDone)
 	fp.input.SetInputCapture(fp.handleInput)
 

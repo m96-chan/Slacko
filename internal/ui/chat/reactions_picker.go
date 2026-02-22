@@ -51,7 +51,7 @@ func NewReactionsPicker(cfg *config.Config) *ReactionsPicker {
 
 	rp.input = tview.NewInputField()
 	rp.input.SetLabel(" Emoji: ")
-	rp.input.SetFieldBackgroundColor(tcell.ColorDefault)
+	rp.input.SetFieldBackgroundColor(cfg.Theme.Modal.InputBackground.Background())
 	rp.input.SetChangedFunc(rp.onInputChanged)
 	rp.input.SetInputCapture(rp.handleInput)
 

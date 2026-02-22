@@ -40,7 +40,7 @@ func NewPinsPicker(cfg *config.Config) *PinsPicker {
 	pp.list.SetHighlightFullLine(true)
 	pp.list.ShowSecondaryText(true)
 	pp.list.SetWrapAround(false)
-	pp.list.SetSecondaryTextColor(tcell.ColorGray)
+	pp.list.SetSecondaryTextColor(cfg.Theme.Modal.SecondaryText.Foreground())
 	pp.list.SetInputCapture(pp.handleInput)
 
 	pp.status = tview.NewTextView()

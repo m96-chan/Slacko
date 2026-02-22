@@ -39,6 +39,7 @@ type OnPinRequestFunc func(channelID, timestamp string, pinned bool)
 type MessagesList struct {
 	*tview.TextView
 	cfg                    *config.Config
+	mdColors               markdown.MarkdownColors
 	messages               []slack.Message          // oldest first
 	users                  map[string]slack.User
 	channelNames           map[string]string        // channelID → name
@@ -65,6 +66,7 @@ func NewMessagesList(cfg *config.Config) *MessagesList {
 		users:        make(map[string]slack.User),
 		channelNames: make(map[string]string),
 		pinnedSet:    make(map[string]bool),
+		mdColors:     mdColorsFromTheme(cfg.Theme.Markdown),
 	}
 
 	ml.SetDynamicColors(true)
@@ -76,6 +78,25 @@ func NewMessagesList(cfg *config.Config) *MessagesList {
 	ml.SetInputCapture(ml.handleInput)
 
 	return ml
+}
+
+// mdColorsFromTheme converts theme markdown styles to MarkdownColors tags.
+func mdColorsFromTheme(m config.MarkdownTheme) markdown.MarkdownColors {
+	mc := markdown.MarkdownColors{
+		UserMention:    m.UserMention.Tag(),
+		ChannelMention: m.ChannelMention.Tag(),
+		SpecialMention: m.SpecialMention.Tag(),
+		Link:           m.Link.Tag(),
+		InlineCode:     m.InlineCode.Tag(),
+		CodeFence:      m.CodeFence.Tag(),
+		BlockquoteMark: m.BlockquoteMark.Tag(),
+		BlockquoteText: m.BlockquoteText.Tag(),
+	}
+	// Fall back to defaults if all tags are empty (zero-value theme).
+	if mc.UserMention == "[-]" || mc.UserMention == "[-:-:-]" {
+		return markdown.DefaultMarkdownColors()
+	}
+	return mc
 }
 
 // SetSelfUserID sets the current user's ID for edit permission checks.
@@ -317,6 +338,8 @@ func (ml *MessagesList) UpdateUsers(users map[string]slack.User) {
 func (ml *MessagesList) render() {
 	var b strings.Builder
 
+	theme := ml.cfg.Theme.MessagesList
+
 	var prevDate string
 	var prevUser string
 	var prevTime time.Time
@@ -336,7 +359,7 @@ func (ml *MessagesList) render() {
 			if i > 0 {
 				b.WriteString("\n")
 			}
-			b.WriteString(formatDateSeparator(dateStr, ml.cfg.DateSeparator.Character))
+			b.WriteString(formatDateSeparator(dateStr, ml.cfg.DateSeparator.Character, theme.DateSeparator))
 			b.WriteString("\n")
 			prevDate = dateStr
 			prevUser = ""
@@ -344,7 +367,7 @@ func (ml *MessagesList) render() {
 
 		// "New messages" separator — shown once at the first message after lastReadTS.
 		if !newMsgSeparatorShown && ml.lastReadTS != "" && msg.Timestamp > ml.lastReadTS {
-			b.WriteString(formatNewMessagesSeparator(ml.cfg.DateSeparator.Character))
+			b.WriteString(formatNewMessagesSeparator(ml.cfg.DateSeparator.Character, theme.NewMsgSeparator))
 			b.WriteString("\n")
 			newMsgSeparatorShown = true
 			prevUser = ""
@@ -362,7 +385,7 @@ func (ml *MessagesList) render() {
 			// Timestamp + author line.
 			if ml.cfg.Timestamps.Enabled {
 				timeStr := t.Format(ml.cfg.Timestamps.Format)
-				fmt.Fprintf(&b, "[gray]%s[-] ", timeStr)
+				fmt.Fprintf(&b, "%s%s%s ", theme.Timestamp.Tag(), timeStr, theme.Timestamp.Reset())
 			}
 			userName := resolveUserName(msg.User, msg.Username, msg.BotID, ml.users)
 			// Presence icon before author name.
@@ -371,7 +394,7 @@ func (ml *MessagesList) render() {
 					fmt.Fprintf(&b, "%s ", presenceIcon(u.Presence))
 				}
 			}
-			fmt.Fprintf(&b, "[green::b]%s[-::-]", tview.Escape(userName))
+			fmt.Fprintf(&b, "%s%s%s", theme.Author.Tag(), tview.Escape(userName), theme.Author.Reset())
 			// Status emoji after author name.
 			if u, ok := ml.users[msg.User]; ok && u.Profile.StatusEmoji != "" {
 				emoji := u.Profile.StatusEmoji
@@ -387,10 +410,10 @@ func (ml *MessagesList) render() {
 
 		// System message subtypes.
 		if text := systemMessageText(msg, ml.users); text != "" {
-			fmt.Fprintf(&b, "  [gray::d]%s[-::-]\n", tview.Escape(text))
+			fmt.Fprintf(&b, "  %s%s%s\n", theme.SystemMessage.Tag(), tview.Escape(text), theme.SystemMessage.Reset())
 		} else if msg.Text != "" {
 			rendered := markdown.Render(msg.Text, ml.users, ml.channelNames,
-				ml.cfg.Markdown.Enabled, ml.cfg.Markdown.SyntaxTheme)
+				ml.cfg.Markdown.Enabled, ml.cfg.Markdown.SyntaxTheme, ml.mdColors)
 			for _, line := range strings.Split(rendered, "\n") {
 				fmt.Fprintf(&b, "  %s\n", line)
 			}
@@ -398,19 +421,19 @@ func (ml *MessagesList) render() {
 
 		// Edited indicator.
 		if msg.Edited != nil && msg.Edited.Timestamp != "" {
-			b.WriteString("  [gray::d](edited)[-::-]\n")
+			fmt.Fprintf(&b, "  %s(edited)%s\n", theme.EditedIndicator.Tag(), theme.EditedIndicator.Reset())
 		}
 
 		// Pin indicator.
 		if ml.pinnedSet[msg.Timestamp] {
-			b.WriteString("  [yellow]\U0001F4CC pinned[-]\n")
+			fmt.Fprintf(&b, "  %s\U0001F4CC pinned%s\n", theme.PinIndicator.Tag(), theme.PinIndicator.Reset())
 		}
 
 		// File attachments.
 		for _, f := range msg.Files {
 			icon := fileIcon(f.Name)
-			fmt.Fprintf(&b, "  [blue]%s %s (%s)[-]\n",
-				icon, tview.Escape(f.Name), formatFileSize(f.Size))
+			fmt.Fprintf(&b, "  %s%s %s (%s)%s\n",
+				theme.FileAttachment.Tag(), icon, tview.Escape(f.Name), formatFileSize(f.Size), theme.FileAttachment.Reset())
 		}
 
 		// Reactions.
@@ -423,9 +446,9 @@ func (ml *MessagesList) render() {
 				emoji := markdown.LookupEmoji(r.Name)
 				isSelf := containsStr(r.Users, ml.selfUserID)
 				if isSelf {
-					fmt.Fprintf(&b, "[yellow]%s %d[-]", emoji, r.Count)
+					fmt.Fprintf(&b, "%s%s %d%s", theme.ReactionSelf.Tag(), emoji, r.Count, theme.ReactionSelf.Reset())
 				} else {
-					fmt.Fprintf(&b, "[gray]%s %d[-]", emoji, r.Count)
+					fmt.Fprintf(&b, "%s%s %d%s", theme.ReactionOther.Tag(), emoji, r.Count, theme.ReactionOther.Reset())
 				}
 			}
 			b.WriteString("\n")
@@ -434,9 +457,9 @@ func (ml *MessagesList) render() {
 		// Thread reply count.
 		if msg.ReplyCount > 0 {
 			if msg.ReplyCount == 1 {
-				b.WriteString("  [cyan]└─ 1 reply[-]\n")
+				fmt.Fprintf(&b, "  %s└─ 1 reply%s\n", theme.Reply.Tag(), theme.Reply.Reset())
 			} else {
-				fmt.Fprintf(&b, "  [cyan]└─ %d replies[-]\n", msg.ReplyCount)
+				fmt.Fprintf(&b, "  %s└─ %d replies%s\n", theme.Reply.Tag(), msg.ReplyCount, theme.Reply.Reset())
 			}
 		}
 
@@ -588,7 +611,7 @@ func parseSlackTimestamp(ts string) time.Time {
 }
 
 // formatDateSeparator creates a centered date separator line.
-func formatDateSeparator(date, char string) string {
+func formatDateSeparator(date, char string, style config.StyleWrapper) string {
 	if char == "" {
 		char = "─"
 	}
@@ -599,11 +622,11 @@ func formatDateSeparator(date, char string) string {
 		sideLen = 3
 	}
 	side := strings.Repeat(char, sideLen)
-	return fmt.Sprintf("[gray]%s%s%s[-]", side, label, side)
+	return fmt.Sprintf("%s%s%s%s%s", style.Tag(), side, label, side, style.Reset())
 }
 
-// formatNewMessagesSeparator creates a centered red "New messages" separator line.
-func formatNewMessagesSeparator(char string) string {
+// formatNewMessagesSeparator creates a centered "New messages" separator line.
+func formatNewMessagesSeparator(char string, style config.StyleWrapper) string {
 	if char == "" {
 		char = "─"
 	}
@@ -613,7 +636,7 @@ func formatNewMessagesSeparator(char string) string {
 		sideLen = 3
 	}
 	side := strings.Repeat(char, sideLen)
-	return fmt.Sprintf("[red]%s%s%s[-]", side, label, side)
+	return fmt.Sprintf("%s%s%s%s%s", style.Tag(), side, label, side, style.Reset())
 }
 
 // resolveUserName returns the best display name for a message author.

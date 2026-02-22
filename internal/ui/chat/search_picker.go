@@ -43,7 +43,7 @@ func NewSearchPicker(cfg *config.Config) *SearchPicker {
 
 	sp.input = tview.NewInputField()
 	sp.input.SetLabel(" Search: ")
-	sp.input.SetFieldBackgroundColor(tcell.ColorDefault)
+	sp.input.SetFieldBackgroundColor(cfg.Theme.Modal.InputBackground.Background())
 	sp.input.SetChangedFunc(sp.onInputChanged)
 	sp.input.SetInputCapture(sp.handleInput)
 
@@ -51,7 +51,7 @@ func NewSearchPicker(cfg *config.Config) *SearchPicker {
 	sp.list.SetHighlightFullLine(true)
 	sp.list.ShowSecondaryText(true)
 	sp.list.SetWrapAround(false)
-	sp.list.SetSecondaryTextColor(tcell.ColorGray)
+	sp.list.SetSecondaryTextColor(cfg.Theme.Modal.SecondaryText.Foreground())
 
 	sp.status = tview.NewTextView()
 	sp.status.SetTextAlign(tview.AlignLeft)

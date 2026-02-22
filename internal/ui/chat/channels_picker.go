@@ -39,7 +39,7 @@ func NewChannelsPicker(cfg *config.Config) *ChannelsPicker {
 
 	cp.input = tview.NewInputField()
 	cp.input.SetLabel(" Search: ")
-	cp.input.SetFieldBackgroundColor(tcell.ColorDefault)
+	cp.input.SetFieldBackgroundColor(cfg.Theme.Modal.InputBackground.Background())
 	cp.input.SetChangedFunc(cp.onInputChanged)
 	cp.input.SetInputCapture(cp.handleInput)
 

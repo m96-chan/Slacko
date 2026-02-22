@@ -167,3 +167,68 @@ func TestEmbeddedConfigIsValidTOML(t *testing.T) {
 		t.Fatalf("embedded config.toml is not valid TOML: %v", err)
 	}
 }
+
+func TestPresetLoading(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	// Write config that selects monokai preset.
+	content := []byte(`messages_limit = 50
+autocomplete_limit = 10
+
+[theme]
+preset = "monokai"
+`)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	monokai := BuiltinTheme("monokai")
+	if cfg.Theme.MessagesList.Author.Tag() != monokai.MessagesList.Author.Tag() {
+		t.Errorf("expected monokai author tag %q, got %q",
+			monokai.MessagesList.Author.Tag(), cfg.Theme.MessagesList.Author.Tag())
+	}
+}
+
+func TestPresetWithOverride(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	// Write config that selects monokai but overrides author color.
+	content := []byte(`messages_limit = 50
+autocomplete_limit = 10
+
+[theme]
+preset = "monokai"
+
+[theme.messages_list.author]
+foreground = "red"
+attributes = "bold"
+`)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Author should be overridden to red.
+	if cfg.Theme.MessagesList.Author.Tag() != "[red:-:b]" {
+		t.Errorf("expected overridden author tag [red:-:b], got %q",
+			cfg.Theme.MessagesList.Author.Tag())
+	}
+
+	// Rest of monokai should be preserved.
+	monokai := BuiltinTheme("monokai")
+	if cfg.Theme.Markdown.UserMention.Tag() != monokai.Markdown.UserMention.Tag() {
+		t.Errorf("non-overridden field should keep monokai value, got %q vs %q",
+			cfg.Theme.Markdown.UserMention.Tag(), monokai.Markdown.UserMention.Tag())
+	}
+}

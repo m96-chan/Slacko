@@ -60,6 +60,12 @@ func NewMessageInput(cfg *config.Config) *MessageInput {
 	mi.SetBorder(true).SetTitle(" Input ")
 	mi.SetPlaceholder("Type a message...")
 
+	// Apply theme styles.
+	fg, bg, _ := cfg.Theme.MessageInput.Text.Style.Decompose()
+	mi.SetTextStyle(tcell.StyleDefault.Foreground(fg).Background(bg))
+	pfg, pbg, _ := cfg.Theme.MessageInput.Placeholder.Style.Decompose()
+	mi.SetPlaceholderStyle(tcell.StyleDefault.Foreground(pfg).Background(pbg))
+
 	mi.SetInputCapture(mi.handleInput)
 	mi.SetChangedFunc(mi.onTextChanged)
 
