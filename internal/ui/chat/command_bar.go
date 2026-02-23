@@ -36,11 +36,12 @@ var builtinVimCommands = []VimCommand{
 // CommandBar is a vim-style command input shown at the bottom of the screen.
 type CommandBar struct {
 	*tview.InputField
-	cfg       *config.Config
-	history   []string
-	histIdx   int // -1 means not browsing history
-	onExecute func(command, args string)
-	onClose   func()
+	cfg            *config.Config
+	history        []string
+	histIdx        int // -1 means not browsing history
+	onExecute      func(command, args string)
+	onClose        func()
+	setOptionNames []string // option names for :set subcommand completion
 }
 
 // NewCommandBar creates a new command bar.
@@ -75,6 +76,11 @@ func (cb *CommandBar) SetOnExecute(fn func(command, args string)) {
 // SetOnClose sets the callback for when the command bar is dismissed.
 func (cb *CommandBar) SetOnClose(fn func()) {
 	cb.onClose = fn
+}
+
+// SetSetOptionNames sets the option names available for :set subcommand completion.
+func (cb *CommandBar) SetSetOptionNames(names []string) {
+	cb.setOptionNames = names
 }
 
 // Reset clears the input and history index.
@@ -166,19 +172,33 @@ func (cb *CommandBar) autocomplete(currentText string) []string {
 	if currentText == "" {
 		return nil
 	}
-	prefix := strings.ToLower(currentText)
-	// Only complete the command name part (before first space).
-	if strings.Contains(prefix, " ") {
+	lower := strings.ToLower(currentText)
+
+	// Check for subcommand completion (e.g., "set <option>").
+	if spaceIdx := strings.Index(lower, " "); spaceIdx >= 0 {
+		cmd := strings.TrimSpace(lower[:spaceIdx])
+		sub := strings.TrimSpace(lower[spaceIdx+1:])
+
+		if cmd == "set" && len(cb.setOptionNames) > 0 {
+			var matches []string
+			for _, name := range cb.setOptionNames {
+				if sub == "" || strings.HasPrefix(name, sub) {
+					matches = append(matches, "set "+name)
+				}
+			}
+			return matches
+		}
 		return nil
 	}
 
+	// Complete the command name.
 	var matches []string
 	for _, cmd := range builtinVimCommands {
-		if strings.HasPrefix(cmd.Name, prefix) {
+		if strings.HasPrefix(cmd.Name, lower) {
 			matches = append(matches, cmd.Name)
 		}
 		for _, alias := range cmd.Aliases {
-			if strings.HasPrefix(alias, prefix) {
+			if strings.HasPrefix(alias, lower) {
 				matches = append(matches, alias)
 			}
 		}
