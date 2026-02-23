@@ -1,0 +1,5 @@
+title: Slacko
+description: A lightweight, keyboard-driven TUI client for Slack
+remote_theme: pages-themes/minimal@v0.2.0
+plugins:
+  - jekyll-remote-theme
