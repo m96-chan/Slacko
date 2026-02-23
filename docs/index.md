@@ -22,17 +22,34 @@ A lightweight, keyboard-driven TUI (Terminal User Interface) client for [Slack](
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap m96-chan/tap
+brew install slacko
+```
+
+### Arch Linux (AUR)
+
+```bash
+yay -S slacko-bin
+```
+
+### Nix
+
+```bash
+nix profile install github:m96-chan/Slacko
+```
+
+### Go
+
 ```bash
 go install github.com/m96-chan/Slacko@latest
 ```
 
-Or build from source:
+### Binary Releases
 
-```bash
-git clone https://github.com/m96-chan/Slacko.git
-cd Slacko
-go build -o slacko .
-```
+Download pre-built binaries from [GitHub Releases](https://github.com/m96-chan/Slacko/releases).
 
 ## Getting Started
 
@@ -42,5 +59,6 @@ Just run `slacko` — it will open your browser for Slack authorization. After g
 
 - [GitHub Repository](https://github.com/m96-chan/Slacko)
 - [Privacy Policy](privacy)
+- [Terms of Service](terms)
 - [Support](support)
 - [License (MIT)](https://github.com/m96-chan/Slacko/blob/main/LICENSE)
