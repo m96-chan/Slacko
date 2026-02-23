@@ -23,12 +23,12 @@ func BuiltinTheme(name string) Theme {
 	}
 }
 
-// defaultTheme matches the original hardcoded colors exactly.
+// defaultTheme uses a green accent palette matching the Slacko icon.
 func defaultTheme() Theme {
 	return Theme{
 		Preset: "default",
 		Border: BorderTheme{
-			Focused: makeStyle("blue", "", ""),
+			Focused: makeStyle("green", "", ""),
 			Normal:  makeStyle("gray", "", ""),
 		},
 		Title: TitleTheme{
@@ -37,7 +37,7 @@ func defaultTheme() Theme {
 		},
 		ChannelsTree: ChannelsTreeTheme{
 			Channel:  makeStyle("white", "", ""),
-			Selected: makeStyle("blue", "", "b"),
+			Selected: makeStyle("green", "", "b"),
 			Unread:   makeStyle("white", "", "b"),
 		},
 		MessagesList: MessagesListTheme{
@@ -45,12 +45,12 @@ func defaultTheme() Theme {
 			Author:           makeStyle("green", "", "b"),
 			Timestamp:        makeStyle("gray", "", ""),
 			Selected:         makeStyle("white", "", "r"),
-			Reply:            makeStyle("cyan", "", ""),
+			Reply:            makeStyle("lightgreen", "", ""),
 			SystemMessage:    makeStyle("gray", "", "d"),
 			EditedIndicator:  makeStyle("gray", "", "d"),
 			PinIndicator:     makeStyle("yellow", "", ""),
-			FileAttachment:   makeStyle("blue", "", ""),
-			AttachmentTitle:  makeStyle("cyan", "", "b"),
+			FileAttachment:   makeStyle("green", "", ""),
+			AttachmentTitle:  makeStyle("lightgreen", "", "b"),
 			AttachmentText:   makeStyle("gray", "", ""),
 			AttachmentFooter: makeStyle("gray", "", "d"),
 			ReactionSelf:     makeStyle("yellow", "", ""),
@@ -68,17 +68,17 @@ func defaultTheme() Theme {
 			ParentLabel:      makeStyle("gray", "", ""),
 			Separator:        makeStyle("gray", "", ""),
 			EditedIndicator:  makeStyle("gray", "", "d"),
-			FileAttachment:   makeStyle("blue", "", ""),
-			AttachmentTitle:  makeStyle("cyan", "", "b"),
+			FileAttachment:   makeStyle("green", "", ""),
+			AttachmentTitle:  makeStyle("lightgreen", "", "b"),
 			AttachmentText:   makeStyle("gray", "", ""),
 			AttachmentFooter: makeStyle("gray", "", "d"),
 			Reaction:         makeStyle("gray", "", ""),
 		},
 		Markdown: MarkdownTheme{
 			UserMention:    makeStyle("yellow", "", "b"),
-			ChannelMention: makeStyle("cyan", "", "b"),
+			ChannelMention: makeStyle("lightgreen", "", "b"),
 			SpecialMention: makeStyle("yellow", "", "bu"),
-			Link:           makeStyle("blue", "", "u"),
+			Link:           makeStyle("green", "", "u"),
 			InlineCode:     makeStyle("gray", "", ""),
 			CodeFence:      makeStyle("gray", "", ""),
 			BlockquoteMark: makeStyle("gray", "", ""),
@@ -90,7 +90,7 @@ func defaultTheme() Theme {
 		},
 		StatusBar: StatusBarTheme{
 			Text:       makeStyle("white", "", ""),
-			Background: makeStyle("", "blue", ""),
+			Background: makeStyle("", "darkgreen", ""),
 		},
 	}
 }

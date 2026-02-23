@@ -88,9 +88,9 @@ func TestBuiltinTheme_Default(t *testing.T) {
 	if theme.MessagesList.Author.Tag() != "[green:-:b]" {
 		t.Errorf("author tag = %q, want [green:-:b]", theme.MessagesList.Author.Tag())
 	}
-	// Markdown link should be blue+underline.
-	if theme.Markdown.Link.Tag() != "[blue:-:u]" {
-		t.Errorf("link tag = %q, want [blue:-:u]", theme.Markdown.Link.Tag())
+	// Markdown link should be green+underline.
+	if theme.Markdown.Link.Tag() != "[green:-:u]" {
+		t.Errorf("link tag = %q, want [green:-:u]", theme.Markdown.Link.Tag())
 	}
 }
 

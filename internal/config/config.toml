@@ -152,7 +152,7 @@ preset = "default"
 
 [theme.border]
 [theme.border.focused]
-foreground = "blue"
+foreground = "green"
 
 [theme.border.normal]
 foreground = "gray"
@@ -170,7 +170,7 @@ foreground = "gray"
 foreground = "white"
 
 [theme.channels_tree.selected]
-foreground = "blue"
+foreground = "green"
 attributes = "bold"
 
 [theme.channels_tree.unread]
@@ -193,7 +193,7 @@ foreground = "white"
 attributes = "reverse"
 
 [theme.messages_list.reply]
-foreground = "cyan"
+foreground = "lightgreen"
 
 [theme.messages_list.system_message]
 foreground = "gray"
@@ -207,10 +207,10 @@ attributes = "dim"
 foreground = "yellow"
 
 [theme.messages_list.file_attachment]
-foreground = "blue"
+foreground = "green"
 
 [theme.messages_list.attachment_title]
-foreground = "cyan"
+foreground = "lightgreen"
 attributes = "bold"
 
 [theme.messages_list.attachment_text]
@@ -259,10 +259,10 @@ foreground = "gray"
 attributes = "dim"
 
 [theme.thread_view.file_attachment]
-foreground = "blue"
+foreground = "green"
 
 [theme.thread_view.attachment_title]
-foreground = "cyan"
+foreground = "lightgreen"
 attributes = "bold"
 
 [theme.thread_view.attachment_text]
@@ -281,7 +281,7 @@ foreground = "yellow"
 attributes = "bold"
 
 [theme.markdown_style.channel_mention]
-foreground = "cyan"
+foreground = "lightgreen"
 attributes = "bold"
 
 [theme.markdown_style.special_mention]
@@ -289,7 +289,7 @@ foreground = "yellow"
 attributes = "bold|underline"
 
 [theme.markdown_style.link]
-foreground = "blue"
+foreground = "green"
 attributes = "underline"
 
 [theme.markdown_style.inline_code]
@@ -315,4 +315,4 @@ foreground = "gray"
 foreground = "white"
 
 [theme.status_bar.background]
-background = "blue"
+background = "darkgreen"

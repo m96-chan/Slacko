@@ -1,12 +1,20 @@
-# Slacko
+<p align="center">
+  <img src="docs/assets/icon.png" alt="Slacko" width="128">
+</p>
 
-[![CI](https://github.com/m96-chan/Slacko/actions/workflows/ci.yml/badge.svg)](https://github.com/m96-chan/Slacko/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/m96-chan/Slacko)](https://goreportcard.com/report/github.com/m96-chan/Slacko)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<h1 align="center">Slacko</h1>
 
-A lightweight, keyboard-driven TUI (Terminal User Interface) client for [Slack](https://slack.com), built in Go. Inspired by [discordo](https://github.com/ayn2op/discordo).
+<p align="center">
+  A lightweight, keyboard-driven TUI client for <a href="https://slack.com">Slack</a>, built in Go.
+</p>
 
-<!-- TODO: Add screenshots -->
+<p align="center">
+  <a href="https://github.com/m96-chan/Slacko/actions/workflows/ci.yml"><img src="https://github.com/m96-chan/Slacko/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://goreportcard.com/report/github.com/m96-chan/Slacko"><img src="https://goreportcard.com/badge/github.com/m96-chan/Slacko" alt="Go Report Card"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center"><img src="docs/assets/hero.png" alt="Slacko — TUI Client for Slack" width="600"></p>
 
 ## Features
 
@@ -29,11 +37,43 @@ A lightweight, keyboard-driven TUI (Terminal User Interface) client for [Slack](
 
 ## Installation
 
+### Go
+
 ```bash
 go install github.com/m96-chan/Slacko@latest
 ```
 
-Or build from source:
+### Arch Linux (AUR)
+
+<!-- TODO: Register AUR package -->
+
+```bash
+yay -S slacko-git
+```
+
+### Homebrew
+
+<!-- TODO: Create Homebrew formula -->
+
+```bash
+brew install slacko
+```
+
+### Nix
+
+<!-- TODO: Add to nixpkgs -->
+
+```bash
+nix-shell -p slacko
+```
+
+### Binary Releases
+
+<!-- TODO: Set up GoReleaser for GitHub Releases -->
+
+Download pre-built binaries from [GitHub Releases](https://github.com/m96-chan/Slacko/releases).
+
+### Build from Source
 
 ```bash
 git clone https://github.com/m96-chan/Slacko.git
