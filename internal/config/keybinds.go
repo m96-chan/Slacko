@@ -33,6 +33,7 @@ type Keybinds struct {
 	StarredPicker    StarredPickerKeybinds  `toml:"starred_picker"`
 	UserProfilePanel UserProfileKeybinds    `toml:"user_profile_panel"`
 	ChannelInfoPanel ChannelInfoKeybinds    `toml:"channel_info_panel"`
+	MembersPicker    MembersPickerKeybinds  `toml:"members_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -142,4 +143,12 @@ type ChannelInfoKeybinds struct {
 	SetTopic   string `toml:"set_topic"`
 	SetPurpose string `toml:"set_purpose"`
 	Leave      string `toml:"leave"`
+}
+
+// MembersPickerKeybinds holds keybindings for the channel members picker popup.
+type MembersPickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
 }

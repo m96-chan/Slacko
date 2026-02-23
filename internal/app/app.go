@@ -434,6 +434,14 @@ func (a *App) showMain() {
 		}()
 	})
 
+	// Wire members picker: selecting a member opens their profile.
+	a.chatView.MembersPicker.SetOnSelect(func(userID string) {
+		a.chatView.HideMembersPicker()
+		a.chatView.ShowUserProfile()
+		a.chatView.UserProfilePanel.SetStatus("Loading...")
+		go a.loadUserProfile(userID)
+	})
+
 	// Wire user profile panel.
 	a.chatView.MessagesList.SetOnUserProfileRequest(func(userID string) {
 		a.chatView.ShowUserProfile()
@@ -1576,7 +1584,9 @@ func (a *App) executeSlashCommand(channelID, command, args string) {
 			a.chatView.ShowSearchPicker()
 		}
 	case "who":
-		go a.cmdWho(channelID)
+		a.chatView.ShowMembersPicker()
+		a.chatView.MembersPicker.SetStatus("Loading...")
+		go a.loadChannelMembers(channelID)
 	case "me":
 		if args == "" {
 			a.showCommandFeedback("Usage: /me [action]")
@@ -1692,40 +1702,47 @@ func (a *App) cmdSetTopic(channelID, topic string) {
 	a.showCommandFeedback("Topic updated")
 }
 
-// cmdWho lists members of a channel.
-func (a *App) cmdWho(channelID string) {
-	userIDs, _, err := a.slack.GetUsersInConversation(channelID, "", 100)
-	if err != nil {
-		slog.Error("failed to get channel members", "channel", channelID, "error", err)
-		a.showCommandFeedback("Failed to list members")
-		return
+// loadChannelMembers fetches all members of a channel and populates the members picker.
+func (a *App) loadChannelMembers(channelID string) {
+	var allUserIDs []string
+	cursor := ""
+	for {
+		userIDs, nextCursor, err := a.slack.GetUsersInConversation(channelID, cursor, 200)
+		if err != nil {
+			slog.Error("failed to get channel members", "channel", channelID, "error", err)
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.MembersPicker.SetStatus("Failed to load members")
+			})
+			return
+		}
+		allUserIDs = append(allUserIDs, userIDs...)
+		if nextCursor == "" {
+			break
+		}
+		cursor = nextCursor
 	}
 
 	a.mu.Lock()
 	users := a.users
 	a.mu.Unlock()
 
-	names := make([]string, 0, len(userIDs))
-	for _, uid := range userIDs {
+	entries := make([]chat.MemberEntry, 0, len(allUserIDs))
+	for _, uid := range allUserIDs {
+		entry := chat.MemberEntry{UserID: uid}
 		if u, ok := users[uid]; ok {
-			name := u.Profile.DisplayName
-			if name == "" {
-				name = u.RealName
+			entry.DisplayName = u.Profile.DisplayName
+			entry.RealName = u.RealName
+			entry.IsBot = u.IsBot
+			if entry.DisplayName == "" && u.Name != "" {
+				entry.DisplayName = u.Name
 			}
-			if name == "" {
-				name = u.Name
-			}
-			names = append(names, name)
-		} else {
-			names = append(names, uid)
 		}
+		entries = append(entries, entry)
 	}
 
-	msg := fmt.Sprintf("%d members: %s", len(names), strings.Join(names, ", "))
-	if len(msg) > 200 {
-		msg = msg[:197] + "..."
-	}
-	a.showCommandFeedback(msg)
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.MembersPicker.SetMembers(entries)
+	})
 }
 
 // cmdScheduleMessage schedules a message for future delivery.
@@ -1921,6 +1938,17 @@ func (a *App) executeVimCommand(command, args string) {
 		a.tview.QueueUpdateDraw(func() {
 			a.chatView.ShowWorkspacePicker()
 		})
+	case "members":
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch != "" {
+			a.tview.QueueUpdateDraw(func() {
+				a.chatView.ShowMembersPicker()
+				a.chatView.MembersPicker.SetStatus("Loading...")
+			})
+			go a.loadChannelMembers(ch)
+		}
 	case "logout":
 		a.logout()
 	default:
