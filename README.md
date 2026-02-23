@@ -12,6 +12,7 @@
   <a href="https://github.com/m96-chan/Slacko/actions/workflows/ci.yml"><img src="https://github.com/m96-chan/Slacko/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://goreportcard.com/report/github.com/m96-chan/Slacko"><img src="https://goreportcard.com/badge/github.com/m96-chan/Slacko" alt="Go Report Card"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://slacko-git.slack.com"><img src="https://img.shields.io/badge/Slack-community-4A154B?logo=slack" alt="Slack"></a>
 </p>
 
 <p align="center"><img src="docs/assets/hero.png" alt="Slacko — TUI Client for Slack" width="600"></p>
