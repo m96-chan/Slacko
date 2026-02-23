@@ -25,6 +25,7 @@ import (
 	"github.com/m96-chan/Slacko/internal/clipboard"
 	"github.com/m96-chan/Slacko/internal/config"
 	"github.com/m96-chan/Slacko/internal/keyring"
+	"github.com/m96-chan/Slacko/internal/markdown"
 	"github.com/m96-chan/Slacko/internal/notifications"
 	slackclient "github.com/m96-chan/Slacko/internal/slack"
 	"github.com/m96-chan/Slacko/internal/typing"
@@ -474,6 +475,51 @@ func (a *App) showMain() {
 		a.tview.QueueUpdateDraw(func() {
 			a.chatView.UserProfilePanel.SetStatus("Copied user ID: " + userID)
 		})
+	})
+
+	// Wire reaction users panel: resolve user IDs to names and display.
+	a.chatView.MessagesList.SetOnViewReactionsRequest(func(channelID, timestamp string, reactions []slack.ItemReaction) {
+		a.chatView.ShowReactionUsers()
+
+		a.mu.Lock()
+		users := a.users
+		selfUserID := a.slack.UserID
+		a.mu.Unlock()
+
+		entries := make([]chat.ReactionUsersEntry, 0, len(reactions))
+		for _, r := range reactions {
+			names := make([]string, 0, len(r.Users))
+			isSelf := false
+			for _, uid := range r.Users {
+				if uid == selfUserID {
+					isSelf = true
+				}
+				if u, ok := users[uid]; ok {
+					name := u.Profile.DisplayName
+					if name == "" {
+						name = u.RealName
+					}
+					if name == "" {
+						name = u.Name
+					}
+					if name == "" {
+						name = uid
+					}
+					names = append(names, name)
+				} else {
+					names = append(names, uid)
+				}
+			}
+			entries = append(entries, chat.ReactionUsersEntry{
+				Emoji:  markdown.LookupEmoji(r.Name),
+				Name:   r.Name,
+				Users:  names,
+				IsSelf: isSelf,
+			})
+		}
+
+		a.chatView.ReactionUsersPanel.SetReactions(entries)
+		a.chatView.ReactionUsersPanel.SetStatus("[Esc]close")
 	})
 
 	// Wire workspace picker.

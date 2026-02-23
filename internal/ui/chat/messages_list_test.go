@@ -653,6 +653,7 @@ func TestMessageListSetterCallbacks(t *testing.T) {
 	ml.SetOnYank(func(string) {})
 	ml.SetOnCopyPermalink(func(string, string) {})
 	ml.SetOnUserProfileRequest(func(string) {})
+	ml.SetOnViewReactionsRequest(func(string, string, []slack.ItemReaction) {})
 
 	// Verify they're set.
 	if ml.onReplyRequest == nil {
@@ -663,6 +664,9 @@ func TestMessageListSetterCallbacks(t *testing.T) {
 	}
 	if ml.onThreadRequest == nil {
 		t.Error("onThreadRequest not set")
+	}
+	if ml.onViewReactionsRequest == nil {
+		t.Error("onViewReactionsRequest not set")
 	}
 }
 

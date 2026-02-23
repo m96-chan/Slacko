@@ -67,6 +67,7 @@ type MessagesListKeybinds struct {
 	Pin            string `toml:"pin"`
 	Star           string `toml:"star"`
 	UserProfile    string `toml:"user_profile"`
+	ViewReactions  string `toml:"view_reactions"`
 	Cancel         string `toml:"cancel"`
 }
 
