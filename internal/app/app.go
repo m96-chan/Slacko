@@ -1584,9 +1584,11 @@ func (a *App) executeSlashCommand(channelID, command, args string) {
 		}
 		go a.sendMeMessage(channelID, args)
 	case "mute":
-		a.showCommandFeedback("Channel muted (local only)")
+		a.chatView.ChannelsTree.SetMuted(channelID, true)
+		a.showCommandFeedback("Channel muted")
 	case "unmute":
-		a.showCommandFeedback("Channel unmuted (local only)")
+		a.chatView.ChannelsTree.SetMuted(channelID, false)
+		a.showCommandFeedback("Channel unmuted")
 	case "schedule":
 		go a.cmdScheduleMessage(channelID, args)
 	case "scheduled":
