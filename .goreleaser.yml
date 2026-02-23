@@ -32,6 +32,7 @@ brews:
   - repository:
       owner: m96-chan
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/m96-chan/Slacko
     description: A lightweight, keyboard-driven TUI client for Slack
     license: MIT
