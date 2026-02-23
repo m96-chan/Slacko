@@ -299,8 +299,8 @@ func New(app *tview.Application, cfg *config.Config) *View {
 	v.Pages = tview.NewPages().
 		AddPage("main", v.outerFlex, true, true)
 
-	// Default focus on messages.
-	v.activePanel = PanelMessages
+	// Default focus on channels.
+	v.activePanel = PanelChannels
 	v.applyBorderStyles()
 
 	return v

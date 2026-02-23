@@ -149,9 +149,14 @@ func (rp *ReactionsPicker) onInputChanged(text string) {
 
 	matches := fuzzy.Find(strings.ToLower(text), targets)
 
-	rp.filtered = make([]int, len(matches))
-	for i, m := range matches {
-		rp.filtered[i] = m.Index
+	const maxResults = 50
+	n := len(matches)
+	if n > maxResults {
+		n = maxResults
+	}
+	rp.filtered = make([]int, n)
+	for i := 0; i < n; i++ {
+		rp.filtered[i] = matches[i].Index
 	}
 
 	rp.rebuildList()
