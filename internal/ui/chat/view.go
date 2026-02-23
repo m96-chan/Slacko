@@ -46,6 +46,7 @@ type View struct {
 	CommandBar         *CommandBar
 	WorkspacePicker    *WorkspacePicker
 	ChannelCreateForm  *ChannelCreateForm
+	InvitePicker       *InvitePicker
 
 	outerFlex            *tview.Flex
 	contentFlex          *tview.Flex
@@ -62,6 +63,7 @@ type View struct {
 	reactionUsersModal   tview.Primitive
 	workspaceModal       tview.Primitive
 	channelCreateModal   tview.Primitive
+	inviteModal          tview.Primitive
 	activePanel          Panel
 	onMarkRead           func()
 	onMarkAllRead        func()
@@ -84,6 +86,7 @@ type View struct {
 	commandBarVisible    bool
 	workspaceVisible     bool
 	channelCreateVisible bool
+	inviteVisible        bool
 	onSwitchWorkspace    func(workspaceID string)
 }
 
@@ -347,6 +350,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Invite picker (modal overlay).
+	v.InvitePicker = NewInvitePicker(cfg)
+	v.InvitePicker.SetOnClose(func() {
+		v.HideInvitePicker()
+	})
+
+	// Centered modal wrapper for the invite picker.
+	v.inviteModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.InvitePicker, 60, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Command bar (vim-style, hidden by default).
 	v.CommandBar = NewCommandBar(cfg)
 	v.CommandBar.SetOnClose(func() {
@@ -475,7 +494,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal or command bar is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible || v.inviteVisible {
 		return event
 	}
 
@@ -658,6 +677,21 @@ func (v *View) ShowMembersPicker() {
 func (v *View) HideMembersPicker() {
 	v.membersVisible = false
 	v.Pages.RemovePage("members")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowInvitePicker shows the invite user picker modal overlay.
+func (v *View) ShowInvitePicker() {
+	v.inviteVisible = true
+	v.InvitePicker.Reset()
+	v.Pages.AddPage("invite", v.inviteModal, true, true)
+	v.app.SetFocus(v.InvitePicker.input)
+}
+
+// HideInvitePicker hides the invite user picker and restores focus.
+func (v *View) HideInvitePicker() {
+	v.inviteVisible = false
+	v.Pages.RemovePage("invite")
 	v.FocusPanel(v.activePanel)
 }
 

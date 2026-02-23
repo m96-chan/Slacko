@@ -27,6 +27,7 @@ var builtinCommands = []SlashCommand{
 	{Name: "me", Description: "Send an action message", Usage: "/me [action]"},
 	{Name: "create-channel", Description: "Create a new channel", Usage: "/create-channel"},
 	{Name: "logout", Description: "Log out and clear tokens", Usage: "/logout"},
+	{Name: "invite", Description: "Invite user to channel", Usage: "/invite"},
 }
 
 // BuiltinCommands returns the list of builtin slash commands.

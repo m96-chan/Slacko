@@ -527,6 +527,18 @@ func (a *App) showMain() {
 		go a.switchWorkspace(workspaceID)
 	})
 
+	// Wire invite picker: selecting a user invites them to the current channel.
+	a.chatView.InvitePicker.SetOnSelect(func(userID string) {
+		a.chatView.HideInvitePicker()
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch == "" {
+			return
+		}
+		go a.inviteUserToChannel(ch, userID)
+	})
+
 	// Wire vim command bar.
 	a.chatView.CommandBar.SetOnExecute(func(command, args string) {
 		a.chatView.HideCommandBar()
@@ -1662,6 +1674,8 @@ func (a *App) executeSlashCommand(channelID, command, args string) {
 		go a.cmdListReminders()
 	case "create-channel":
 		a.chatView.ShowChannelCreateForm()
+	case "invite":
+		a.openInvitePicker(channelID)
 	case "logout":
 		a.logout()
 	default:
@@ -1800,6 +1814,88 @@ func (a *App) loadChannelMembers(channelID string) {
 	a.tview.QueueUpdateDraw(func() {
 		a.chatView.MembersPicker.SetMembers(entries)
 	})
+}
+
+// openInvitePicker opens the invite picker populated with workspace users
+// who are not already in the given channel.
+func (a *App) openInvitePicker(channelID string) {
+	a.chatView.ShowInvitePicker()
+	a.chatView.InvitePicker.SetStatus("Loading users...")
+
+	go func() {
+		// Fetch current channel members.
+		memberSet := make(map[string]bool)
+		cursor := ""
+		for {
+			userIDs, nextCursor, err := a.slack.GetUsersInConversation(channelID, cursor, 200)
+			if err != nil {
+				slog.Error("failed to get channel members for invite", "channel", channelID, "error", err)
+				a.tview.QueueUpdateDraw(func() {
+					a.chatView.InvitePicker.SetStatus("Failed to load members")
+				})
+				return
+			}
+			for _, uid := range userIDs {
+				memberSet[uid] = true
+			}
+			if nextCursor == "" {
+				break
+			}
+			cursor = nextCursor
+		}
+
+		a.mu.Lock()
+		users := a.users
+		a.mu.Unlock()
+
+		// Build entries from workspace users, excluding current members and bots.
+		entries := make([]chat.InviteUserEntry, 0)
+		for _, u := range users {
+			if memberSet[u.ID] || u.IsBot || u.Deleted {
+				continue
+			}
+			entry := chat.InviteUserEntry{
+				UserID:   u.ID,
+				RealName: u.RealName,
+			}
+			if u.Profile.DisplayName != "" {
+				entry.DisplayName = u.Profile.DisplayName
+			} else if u.Name != "" {
+				entry.DisplayName = u.Name
+			}
+			entries = append(entries, entry)
+		}
+
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.InvitePicker.SetUsers(entries)
+		})
+	}()
+}
+
+// inviteUserToChannel invites a user to a channel via the Slack API.
+func (a *App) inviteUserToChannel(channelID, userID string) {
+	_, err := a.slack.InviteUsersToConversation(channelID, userID)
+	if err != nil {
+		slog.Error("failed to invite user", "channel", channelID, "user", userID, "error", err)
+		a.showCommandFeedback("Invite failed: " + err.Error())
+		return
+	}
+
+	// Resolve user name for feedback.
+	a.mu.Lock()
+	userName := userID
+	if u, ok := a.users[userID]; ok {
+		if u.Profile.DisplayName != "" {
+			userName = u.Profile.DisplayName
+		} else if u.RealName != "" {
+			userName = u.RealName
+		} else if u.Name != "" {
+			userName = u.Name
+		}
+	}
+	a.mu.Unlock()
+
+	a.showCommandFeedback("Invited " + userName + " to channel")
 }
 
 // cmdScheduleMessage schedules a message for future delivery.
@@ -2036,6 +2132,13 @@ func (a *App) executeVimCommand(command, args string) {
 		}
 	case "create-channel":
 		a.chatView.ShowChannelCreateForm()
+	case "invite":
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch != "" {
+			a.openInvitePicker(ch)
+		}
 	case "logout":
 		a.logout()
 	default:
