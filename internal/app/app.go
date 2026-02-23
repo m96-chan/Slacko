@@ -521,7 +521,7 @@ func (a *App) showMain() {
 	a.chatView.StatusBar.SetConnectionStatus(
 		fmt.Sprintf("%s (%s) — connecting...", a.slack.UserName, a.slack.TeamName))
 	a.tview.SetRoot(a.chatView, true)
-	a.chatView.FocusPanel(chat.PanelMessages)
+	a.chatView.FocusPanel(chat.PanelChannels)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel

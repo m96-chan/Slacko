@@ -302,6 +302,12 @@ func TestLookupEmoji(t *testing.T) {
 		{"heart", "❤️"},
 		{"fire", "🔥"},
 		{"unknown_custom", ":unknown_custom:"},
+		// shortcodes not in the old hand-maintained map
+		{"avocado", "🥑"},
+		{"unicorn", "🦄"},
+		{"pretzel", "🥨"},
+		{"lobster", "🦞"},
+		{"mango", "🥭"},
 	}
 
 	for _, tt := range tests {

@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/gdamore/tcell/v2 v2.8.1
+	github.com/kyokomi/emoji/v2 v2.2.13
 	github.com/rivo/tview v0.42.0
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/slack-go/slack v0.18.0
