@@ -14,6 +14,10 @@ var (
 )
 
 func main() {
+	cmd.Version = version
+	cmd.Commit = commit
+	cmd.Date = date
+
 	if err := cmd.Run(); err != nil {
 		slog.Error("fatal", "error", err)
 		os.Exit(1)

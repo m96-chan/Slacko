@@ -37,39 +37,38 @@
 
 ## Installation
 
+### Homebrew
+
+```bash
+brew tap m96-chan/tap
+brew install slacko
+```
+
+### Arch Linux (AUR)
+
+```bash
+yay -S slacko-bin
+```
+
+### Nix
+
+```bash
+nix profile install github:m96-chan/Slacko
+```
+
+Or try it without installing:
+
+```bash
+nix run github:m96-chan/Slacko
+```
+
 ### Go
 
 ```bash
 go install github.com/m96-chan/Slacko@latest
 ```
 
-### Arch Linux (AUR)
-
-<!-- TODO: Register AUR package -->
-
-```bash
-yay -S slacko-git
-```
-
-### Homebrew
-
-<!-- TODO: Create Homebrew formula -->
-
-```bash
-brew install slacko
-```
-
-### Nix
-
-<!-- TODO: Add to nixpkgs -->
-
-```bash
-nix-shell -p slacko
-```
-
 ### Binary Releases
-
-<!-- TODO: Set up GoReleaser for GitHub Releases -->
 
 Download pre-built binaries from [GitHub Releases](https://github.com/m96-chan/Slacko/releases).
 

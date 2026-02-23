@@ -28,6 +28,28 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+brews:
+  - repository:
+      owner: m96-chan
+      name: homebrew-tap
+    homepage: https://github.com/m96-chan/Slacko
+    description: A lightweight, keyboard-driven TUI client for Slack
+    license: MIT
+    install: |
+      bin.install "slacko"
+
+aurs:
+  - name: slacko-bin
+    homepage: https://github.com/m96-chan/Slacko
+    description: A lightweight, keyboard-driven TUI client for Slack
+    maintainers:
+      - "m96-chan"
+    license: MIT
+    private_key: "{{ .Env.AUR_SSH_PRIVATE_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/slacko-bin.git"
+    package: |
+      install -Dm755 slacko "${pkgdir}/usr/bin/slacko"
+
 changelog:
   sort: asc
   filters:
