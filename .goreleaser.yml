@@ -29,7 +29,8 @@ checksum:
   name_template: "checksums.txt"
 
 brews:
-  - repository:
+  - name: slacko
+    repository:
       owner: m96-chan
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
