@@ -412,6 +412,22 @@ func (a *App) showMain() {
 		go a.loadPinnedMessages(ch)
 	})
 
+	// Wire bookmarks popup: fetch bookmarks when user opens the popup.
+	a.chatView.SetOnBookmarks(func() {
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch == "" {
+			return
+		}
+		a.chatView.BookmarksPicker.SetStatus("Loading...")
+		go a.loadChannelBookmarks(ch)
+	})
+	a.chatView.BookmarksPicker.SetOnSelect(func(link string) {
+		a.chatView.HideBookmarksPicker()
+		go a.openURL(link)
+	})
+
 	// Wire starred items popup: fetch all starred items when user opens the popup.
 	a.chatView.SetOnStarredItems(func() {
 		a.chatView.StarredPicker.SetStatus("Loading...")
@@ -1020,6 +1036,37 @@ func (a *App) loadPinnedMessages(channelID string) {
 			a.chatView.PinsPicker.SetStatus("1 pinned message")
 		} else {
 			a.chatView.PinsPicker.SetStatus(fmt.Sprintf("%d pinned messages", len(entries)))
+		}
+	})
+}
+
+// loadChannelBookmarks fetches bookmarks for a channel and updates the UI.
+func (a *App) loadChannelBookmarks(channelID string) {
+	bookmarks, err := a.slack.ListBookmarks(channelID)
+	if err != nil {
+		slog.Error("failed to fetch bookmarks", "channel", channelID, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.BookmarksPicker.SetStatus("Failed to load bookmarks")
+		})
+		return
+	}
+
+	entries := make([]chat.BookmarkEntry, 0, len(bookmarks))
+	for _, b := range bookmarks {
+		entries = append(entries, chat.BookmarkEntry{
+			ID:    b.ID,
+			Title: b.Title,
+			Link:  b.Link,
+			Type:  b.Type,
+		})
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.BookmarksPicker.SetBookmarks(entries)
+		if len(entries) == 1 {
+			a.chatView.BookmarksPicker.SetStatus("1 bookmark  [Enter]open  [Esc]close")
+		} else {
+			a.chatView.BookmarksPicker.SetStatus(fmt.Sprintf("%d bookmarks  [Enter]open  [Esc]close", len(entries)))
 		}
 	})
 }
@@ -2120,6 +2167,17 @@ func (a *App) executeVimCommand(command, args string) {
 		case "mouse":
 			a.tview.EnableMouse(a.Config.Mouse)
 		}
+	case "bookmarks":
+		a.mu.Lock()
+		ch := a.currentChannel
+		a.mu.Unlock()
+		if ch == "" {
+			a.showCommandFeedback("No channel selected")
+			return
+		}
+		a.chatView.ShowBookmarksPicker()
+		a.chatView.BookmarksPicker.SetStatus("Loading...")
+		go a.loadChannelBookmarks(ch)
 	case "workspace":
 		a.populateWorkspacePicker()
 		a.tview.QueueUpdateDraw(func() {

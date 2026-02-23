@@ -130,6 +130,12 @@ up = "Ctrl+P"
 down = "Ctrl+N"
 select = "Enter"
 
+[keybinds.bookmarks_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+
 [keybinds.starred_picker]
 close = "Escape"
 up = "Ctrl+P"
