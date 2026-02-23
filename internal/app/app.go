@@ -1148,6 +1148,19 @@ func (a *App) onMessageSend(channelID, text, threadTS string) {
 	}()
 }
 
+// sendMeMessage sends a /me action message to the channel.
+func (a *App) sendMeMessage(channelID, text string) {
+	opts := []slack.MsgOption{
+		slack.MsgOptionText(text, false),
+		slack.MsgOptionMeMessage(),
+	}
+	_, _, err := a.slack.PostMessage(channelID, opts...)
+	if err != nil {
+		slog.Error("failed to send /me message", "channel", channelID, "error", err)
+		a.showCommandFeedback("Send failed: " + err.Error())
+	}
+}
+
 // onThreadReplySend handles sending a reply in the thread view.
 func (a *App) onThreadReplySend(channelID, text, threadTS string) {
 	go func() {
@@ -1564,6 +1577,12 @@ func (a *App) executeSlashCommand(channelID, command, args string) {
 		}
 	case "who":
 		go a.cmdWho(channelID)
+	case "me":
+		if args == "" {
+			a.showCommandFeedback("Usage: /me [action]")
+			return
+		}
+		go a.sendMeMessage(channelID, args)
 	case "mute":
 		a.showCommandFeedback("Channel muted (local only)")
 	case "unmute":

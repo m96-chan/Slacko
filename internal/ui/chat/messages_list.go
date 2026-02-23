@@ -809,7 +809,7 @@ func systemMessageText(msg slack.Message, users map[string]slack.User) string {
 	case "channel_unarchive":
 		return fmt.Sprintf("%s unarchived the channel", userName)
 	case "me_message":
-		return "" // Render as regular text
+		return fmt.Sprintf("%s %s", userName, msg.Text)
 	default:
 		return ""
 	}
