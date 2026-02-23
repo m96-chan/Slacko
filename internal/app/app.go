@@ -1614,12 +1614,12 @@ func (a *App) formatHelpText() string {
 }
 
 // showCommandFeedback shows a temporary status bar message.
-// Safe to call from any goroutine.
+// Safe to call from any goroutine, including the tview event loop.
 func (a *App) showCommandFeedback(msg string) {
-	a.tview.QueueUpdateDraw(func() {
-		a.chatView.StatusBar.SetTypingIndicator(msg)
-	})
 	go func() {
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.StatusBar.SetTypingIndicator(msg)
+		})
 		<-time.After(4 * time.Second)
 		a.tview.QueueUpdateDraw(func() {
 			a.chatView.StatusBar.SetTypingIndicator("")
