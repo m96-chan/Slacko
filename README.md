@@ -44,6 +44,13 @@ brew tap m96-chan/tap
 brew install slacko
 ```
 
+### Scoop (Windows)
+
+```powershell
+scoop bucket add m96-chan https://github.com/m96-chan/scoop-bucket
+scoop install slacko
+```
+
 ### Arch Linux (AUR)
 
 ```bash

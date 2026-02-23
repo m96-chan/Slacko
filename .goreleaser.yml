@@ -40,6 +40,17 @@ brews:
     install: |
       bin.install "slacko"
 
+scoops:
+  - name: slacko
+    repository:
+      owner: m96-chan
+      name: scoop-bucket
+      branch: main
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: https://github.com/m96-chan/Slacko
+    description: A lightweight, keyboard-driven TUI client for Slack
+    license: MIT
+
 aurs:
   - name: slacko-bin
     homepage: https://github.com/m96-chan/Slacko
