@@ -6,9 +6,6 @@
 
 A lightweight, keyboard-driven TUI (Terminal User Interface) client for [Slack](https://slack.com), built in Go. Inspired by [discordo](https://github.com/ayn2op/discordo).
 
-> [!WARNING]
-> Slacko is currently in early development. Expect breaking changes and incomplete features.
-
 ## Features
 
 - **Workspace Navigation** - Browse workspaces, channels (public/private), direct messages, and group DMs
