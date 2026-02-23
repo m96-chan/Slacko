@@ -81,12 +81,12 @@ func (sp *SearchPicker) SetOnClose(fn func()) {
 	sp.onClose = fn
 }
 
-// Reset clears the input, results, and status.
+// Reset clears the input, results, and shows filter hints.
 func (sp *SearchPicker) Reset() {
 	sp.input.SetText("")
 	sp.list.Clear()
 	sp.results = nil
-	sp.status.SetText("")
+	sp.SetStatus(filterHelpText())
 }
 
 // SetResults populates the list with search results.
@@ -157,11 +157,16 @@ func (sp *SearchPicker) onInputChanged(text string) {
 	if text == "" {
 		sp.list.Clear()
 		sp.results = nil
-		sp.status.SetText("")
+		sp.SetStatus(filterHelpText())
 		return
 	}
 
-	sp.SetStatus("Searching...")
+	// Show contextual filter hint if the user is typing a known prefix.
+	if hint := getFilterHint(text); hint != "" {
+		sp.SetStatus(hint)
+	} else {
+		sp.SetStatus("Searching...")
+	}
 
 	sp.debounce = time.AfterFunc(300*time.Millisecond, func() {
 		if sp.onSearch != nil {
@@ -192,6 +197,39 @@ func (sp *SearchPicker) close() {
 	if sp.onClose != nil {
 		sp.onClose()
 	}
+}
+
+// filterHelpText returns the full help text listing available search filters.
+func filterHelpText() string {
+	return "Filters: from:@user  in:#channel  has:reaction/link/pin  before:YYYY-MM-DD  after:YYYY-MM-DD"
+}
+
+// filterHints maps each recognized filter prefix to its hint text.
+var filterHints = map[string]string{
+	"from:":   "from:@user - search messages from a specific user",
+	"in:":     "in:#channel - search within a specific channel",
+	"has:":    "has:reaction / has:link / has:pin - filter by attachment type",
+	"before:": "before:YYYY-MM-DD - messages before a date",
+	"after:":  "after:YYYY-MM-DD - messages after a date",
+}
+
+// getFilterHint returns a contextual hint for the current query.
+// If the query is empty it returns the full help text.
+// If the query ends with a known filter prefix it returns the hint for that prefix.
+// Otherwise it returns an empty string.
+func getFilterHint(query string) string {
+	if query == "" {
+		return filterHelpText()
+	}
+
+	lower := strings.ToLower(query)
+	for prefix, hint := range filterHints {
+		if strings.HasSuffix(lower, prefix) {
+			return hint
+		}
+	}
+
+	return ""
 }
 
 // truncateText shortens text to maxLen characters, adding ellipsis if needed.
