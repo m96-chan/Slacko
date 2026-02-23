@@ -1,8 +1,7 @@
-<p align="center">
-  <img src="docs/assets/icon.png" alt="Slacko" width="128">
-</p>
-
-<h1 align="center">Slacko</h1>
+<h1 align="center">
+  <img src="docs/assets/icon.png" alt="" width="32" valign="middle">
+  Slacko
+</h1>
 
 <p align="center">
   A lightweight, keyboard-driven TUI client for <a href="https://slack.com">Slack</a>, built in Go.
