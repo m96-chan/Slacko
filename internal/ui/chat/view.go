@@ -47,6 +47,7 @@ type View struct {
 	WorkspacePicker    *WorkspacePicker
 	ChannelCreateForm  *ChannelCreateForm
 	InvitePicker       *InvitePicker
+	GroupDMPicker      *GroupDMPicker
 
 	outerFlex            *tview.Flex
 	contentFlex          *tview.Flex
@@ -64,6 +65,7 @@ type View struct {
 	workspaceModal       tview.Primitive
 	channelCreateModal   tview.Primitive
 	inviteModal          tview.Primitive
+	groupDMModal         tview.Primitive
 	activePanel          Panel
 	onMarkRead           func()
 	onMarkAllRead        func()
@@ -87,6 +89,7 @@ type View struct {
 	workspaceVisible     bool
 	channelCreateVisible bool
 	inviteVisible        bool
+	groupDMVisible       bool
 	onSwitchWorkspace    func(workspaceID string)
 }
 
@@ -366,6 +369,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Group DM picker (modal overlay).
+	v.GroupDMPicker = NewGroupDMPicker(cfg)
+	v.GroupDMPicker.SetOnClose(func() {
+		v.HideGroupDMPicker()
+	})
+
+	// Centered modal wrapper for the group DM picker.
+	v.groupDMModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.GroupDMPicker, 60, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Command bar (vim-style, hidden by default).
 	v.CommandBar = NewCommandBar(cfg)
 	v.CommandBar.SetOnClose(func() {
@@ -494,7 +513,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal or command bar is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible || v.inviteVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible || v.inviteVisible || v.groupDMVisible {
 		return event
 	}
 
@@ -778,6 +797,21 @@ func (v *View) ShowChannelCreateForm() {
 func (v *View) HideChannelCreateForm() {
 	v.channelCreateVisible = false
 	v.Pages.RemovePage("channelcreate")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowGroupDMPicker shows the group DM picker modal overlay.
+func (v *View) ShowGroupDMPicker() {
+	v.groupDMVisible = true
+	v.GroupDMPicker.Reset()
+	v.Pages.AddPage("groupdm", v.groupDMModal, true, true)
+	v.app.SetFocus(v.GroupDMPicker.input)
+}
+
+// HideGroupDMPicker hides the group DM picker and restores focus.
+func (v *View) HideGroupDMPicker() {
+	v.groupDMVisible = false
+	v.Pages.RemovePage("groupdm")
 	v.FocusPanel(v.activePanel)
 }
 

@@ -539,6 +539,12 @@ func (a *App) showMain() {
 		go a.inviteUserToChannel(ch, userID)
 	})
 
+	// Wire group DM picker: confirming creates the group DM.
+	a.chatView.GroupDMPicker.SetOnCreate(func(userIDs []string) {
+		a.chatView.HideGroupDMPicker()
+		go a.createGroupDM(userIDs)
+	})
+
 	// Wire vim command bar.
 	a.chatView.CommandBar.SetOnExecute(func(command, args string) {
 		a.chatView.HideCommandBar()
@@ -2139,6 +2145,8 @@ func (a *App) executeVimCommand(command, args string) {
 		if ch != "" {
 			a.openInvitePicker(ch)
 		}
+	case "group-dm":
+		a.openGroupDMPicker()
 	case "logout":
 		a.logout()
 	default:
@@ -2237,6 +2245,81 @@ func (a *App) toggleDebugLogging() {
 	// Toggle is a best-effort feature; just show feedback.
 	a.showCommandFeedback("Debug logging toggled (check log output)")
 	slog.Debug("debug logging enabled via :debug command")
+}
+
+// openGroupDMPicker opens the group DM picker populated with workspace users.
+func (a *App) openGroupDMPicker() {
+	a.mu.Lock()
+	users := a.users
+	selfID := a.slack.UserID
+	a.mu.Unlock()
+
+	// Build entries from workspace users, excluding self, bots, and deleted users.
+	entries := make([]chat.GroupDMUserEntry, 0)
+	for _, u := range users {
+		if u.ID == selfID || u.IsBot || u.Deleted {
+			continue
+		}
+		entry := chat.GroupDMUserEntry{
+			UserID: u.ID,
+		}
+		if u.Profile.DisplayName != "" {
+			entry.DisplayName = u.Profile.DisplayName
+		} else if u.RealName != "" {
+			entry.DisplayName = u.RealName
+		} else if u.Name != "" {
+			entry.DisplayName = u.Name
+		} else {
+			entry.DisplayName = u.ID
+		}
+		entries = append(entries, entry)
+	}
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.GroupDMPicker.SetUsers(entries)
+		a.chatView.ShowGroupDMPicker()
+	})
+}
+
+// createGroupDM creates a group DM conversation with the given user IDs.
+func (a *App) createGroupDM(userIDs []string) {
+	ch, err := a.slack.OpenConversation(userIDs)
+	if err != nil {
+		slog.Error("failed to create group DM", "users", userIDs, "error", err)
+		a.showCommandFeedback("Failed to create group DM: " + err.Error())
+		return
+	}
+
+	// Add the new channel to the cached channels list.
+	a.mu.Lock()
+	a.channels = append(a.channels, *ch)
+	users := a.users
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.ChannelsTree.AddChannel(*ch, users, a.slack.UserID)
+		a.onChannelSelected(ch.ID)
+	})
+
+	// Build a user names list for feedback.
+	var names []string
+	a.mu.Lock()
+	for _, uid := range userIDs {
+		name := uid
+		if u, ok := a.users[uid]; ok {
+			if u.Profile.DisplayName != "" {
+				name = u.Profile.DisplayName
+			} else if u.RealName != "" {
+				name = u.RealName
+			} else if u.Name != "" {
+				name = u.Name
+			}
+		}
+		names = append(names, name)
+	}
+	a.mu.Unlock()
+
+	a.showCommandFeedback("Group DM created with " + strings.Join(names, ", "))
 }
 
 // populateWorkspacePicker refreshes the workspace picker with stored workspaces.

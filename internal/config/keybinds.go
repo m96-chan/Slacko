@@ -35,6 +35,7 @@ type Keybinds struct {
 	ChannelInfoPanel ChannelInfoKeybinds    `toml:"channel_info_panel"`
 	MembersPicker    MembersPickerKeybinds  `toml:"members_picker"`
 	InvitePicker     InvitePickerKeybinds   `toml:"invite_picker"`
+	GroupDMPicker    GroupDMPickerKeybinds  `toml:"group_dm_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -161,4 +162,14 @@ type InvitePickerKeybinds struct {
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`
 	Select string `toml:"select"`
+}
+
+// GroupDMPickerKeybinds holds keybindings for the group DM creation picker popup.
+type GroupDMPickerKeybinds struct {
+	Close   string `toml:"close"`
+	Up      string `toml:"up"`
+	Down    string `toml:"down"`
+	Add     string `toml:"add"`
+	Remove  string `toml:"remove"`
+	Confirm string `toml:"confirm"`
 }
