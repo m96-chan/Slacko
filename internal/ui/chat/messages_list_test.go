@@ -137,12 +137,13 @@ func TestSystemMessageText(t *testing.T) {
 	tests := []struct {
 		name    string
 		subType string
+		text    string
 		want    string
 	}{
-		{"channel_join", "channel_join", "Alice joined the channel"},
-		{"channel_leave", "channel_leave", "Alice left the channel"},
-		{"regular message", "", ""},
-		{"me_message", "me_message", ""},
+		{"channel_join", "channel_join", "", "Alice joined the channel"},
+		{"channel_leave", "channel_leave", "", "Alice left the channel"},
+		{"regular message", "", "", ""},
+		{"me_message", "me_message", "is thinking...", "Alice is thinking..."},
 	}
 
 	for _, tt := range tests {
@@ -150,6 +151,7 @@ func TestSystemMessageText(t *testing.T) {
 			msg := slack.Message{}
 			msg.User = "U1"
 			msg.SubType = tt.subType
+			msg.Text = tt.text
 			got := systemMessageText(msg, users)
 			if got != tt.want {
 				t.Errorf("systemMessageText() = %q, want %q", got, tt.want)
