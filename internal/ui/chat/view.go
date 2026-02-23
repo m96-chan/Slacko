@@ -45,6 +45,7 @@ type View struct {
 	ReactionUsersPanel *ReactionUsersPanel
 	CommandBar         *CommandBar
 	WorkspacePicker    *WorkspacePicker
+	ChannelCreateForm  *ChannelCreateForm
 
 	outerFlex            *tview.Flex
 	contentFlex          *tview.Flex
@@ -60,6 +61,7 @@ type View struct {
 	channelInfoModal     tview.Primitive
 	reactionUsersModal   tview.Primitive
 	workspaceModal       tview.Primitive
+	channelCreateModal   tview.Primitive
 	activePanel          Panel
 	onMarkRead           func()
 	onMarkAllRead        func()
@@ -81,6 +83,7 @@ type View struct {
 	reactionUsersVisible bool
 	commandBarVisible    bool
 	workspaceVisible     bool
+	channelCreateVisible bool
 	onSwitchWorkspace    func(workspaceID string)
 }
 
@@ -328,6 +331,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Channel create form (modal overlay).
+	v.ChannelCreateForm = NewChannelCreateForm(cfg)
+	v.ChannelCreateForm.SetOnClose(func() {
+		v.HideChannelCreateForm()
+	})
+
+	// Centered modal wrapper for the channel create form.
+	v.channelCreateModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.ChannelCreateForm, 60, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Command bar (vim-style, hidden by default).
 	v.CommandBar = NewCommandBar(cfg)
 	v.CommandBar.SetOnClose(func() {
@@ -456,7 +475,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal or command bar is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible {
 		return event
 	}
 
@@ -710,6 +729,21 @@ func (v *View) ShowWorkspacePicker() {
 func (v *View) HideWorkspacePicker() {
 	v.workspaceVisible = false
 	v.Pages.RemovePage("workspace")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowChannelCreateForm shows the channel creation form modal overlay.
+func (v *View) ShowChannelCreateForm() {
+	v.channelCreateVisible = true
+	v.ChannelCreateForm.Reset()
+	v.Pages.AddPage("channelcreate", v.channelCreateModal, true, true)
+	v.app.SetFocus(v.ChannelCreateForm.form)
+}
+
+// HideChannelCreateForm hides the channel creation form and restores focus.
+func (v *View) HideChannelCreateForm() {
+	v.channelCreateVisible = false
+	v.Pages.RemovePage("channelcreate")
 	v.FocusPanel(v.activePanel)
 }
 

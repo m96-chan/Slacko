@@ -439,6 +439,20 @@ func (c *Client) DeleteReminder(id string) error {
 	})
 }
 
+// CreateConversation creates a new channel (public or private).
+func (c *Client) CreateConversation(name string, isPrivate bool) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := retryOnRateLimit(func() error {
+		var e error
+		ch, e = c.api.CreateConversation(slack.CreateConversationParams{
+			ChannelName: name,
+			IsPrivate:   isPrivate,
+		})
+		return e
+	})
+	return ch, err
+}
+
 // safePrefix returns the first 10 characters of a token for error messages.
 func safePrefix(token string) string {
 	if len(token) <= 10 {

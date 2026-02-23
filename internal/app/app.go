@@ -534,6 +534,12 @@ func (a *App) showMain() {
 	})
 	a.chatView.CommandBar.SetSetOptionNames(RuntimeOptionNames())
 
+	// Wire channel create form.
+	a.chatView.ChannelCreateForm.SetOnCreate(func(name string, isPrivate bool) {
+		a.chatView.ChannelCreateForm.SetStatus("Creating channel...")
+		go a.cmdCreateChannel(name, isPrivate)
+	})
+
 	// Wire channel info panel.
 	a.chatView.SetOnChannelInfo(func() {
 		a.mu.Lock()
@@ -1654,6 +1660,8 @@ func (a *App) executeSlashCommand(channelID, command, args string) {
 		go a.cmdRemind(args)
 	case "reminders":
 		go a.cmdListReminders()
+	case "create-channel":
+		a.chatView.ShowChannelCreateForm()
 	case "logout":
 		a.logout()
 	default:
@@ -2026,6 +2034,8 @@ func (a *App) executeVimCommand(command, args string) {
 			})
 			go a.loadChannelMembers(ch)
 		}
+	case "create-channel":
+		a.chatView.ShowChannelCreateForm()
 	case "logout":
 		a.logout()
 	default:
@@ -2071,6 +2081,35 @@ func (a *App) cmdJoinChannel(channelName string) {
 		a.onChannelSelected(ch.ID)
 	})
 	a.showCommandFeedback("Joined #" + channelName)
+}
+
+// cmdCreateChannel creates a new Slack channel and switches to it.
+func (a *App) cmdCreateChannel(name string, isPrivate bool) {
+	ch, err := a.slack.CreateConversation(name, isPrivate)
+	if err != nil {
+		slog.Error("failed to create channel", "name", name, "error", err)
+		a.tview.QueueUpdateDraw(func() {
+			a.chatView.ChannelCreateForm.SetStatus("Failed: " + err.Error())
+		})
+		return
+	}
+
+	a.mu.Lock()
+	a.channels = append(a.channels, *ch)
+	users := a.users
+	a.mu.Unlock()
+
+	a.tview.QueueUpdateDraw(func() {
+		a.chatView.HideChannelCreateForm()
+		a.chatView.ChannelsTree.AddChannel(*ch, users, a.slack.UserID)
+		a.onChannelSelected(ch.ID)
+	})
+
+	channelType := "public"
+	if isPrivate {
+		channelType = "private"
+	}
+	a.showCommandFeedback(fmt.Sprintf("Created %s channel #%s", channelType, name))
 }
 
 // openURL opens a URL in the system's default browser.
