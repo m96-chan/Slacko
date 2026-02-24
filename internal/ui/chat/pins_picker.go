@@ -51,6 +51,7 @@ func NewPinsPicker(cfg *config.Config) *PinsPicker {
 		AddItem(pp.list, 0, 1, true).
 		AddItem(pp.status, 1, 0, false)
 	pp.SetBorder(true).SetTitle(" Pinned Messages ")
+	pp.SetInputCapture(pp.handleInput)
 
 	return pp
 }

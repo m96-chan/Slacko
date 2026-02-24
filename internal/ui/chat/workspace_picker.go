@@ -46,6 +46,7 @@ func NewWorkspacePicker(cfg *config.Config) *WorkspacePicker {
 	wp.Flex = tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(wp.list, 0, 1, true).
 		AddItem(wp.status, 1, 0, false)
+	wp.SetInputCapture(wp.handleInput)
 
 	return wp
 }

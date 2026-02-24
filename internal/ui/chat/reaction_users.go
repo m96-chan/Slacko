@@ -49,6 +49,7 @@ func NewReactionUsersPanel(cfg *config.Config) *ReactionUsersPanel {
 		AddItem(rp.content, 0, 1, true).
 		AddItem(rp.status, 1, 0, false)
 	rp.SetBorder(true).SetTitle(" Reactions ")
+	rp.SetInputCapture(rp.handleInput)
 
 	return rp
 }

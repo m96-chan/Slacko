@@ -29,6 +29,7 @@ Navigate to **"OAuth & Permissions"** in the left sidebar. Under **"User Token S
 
 | Scope | Purpose |
 |---|---|
+| `bookmarks:read` | List channel bookmarks |
 | `channels:history` | View messages in public channels |
 | `channels:read` | List public channels |
 | `channels:write` | Join/leave channels, set topic |

@@ -1046,7 +1046,7 @@ func (a *App) loadChannelBookmarks(channelID string) {
 	if err != nil {
 		slog.Error("failed to fetch bookmarks", "channel", channelID, "error", err)
 		a.tview.QueueUpdateDraw(func() {
-			a.chatView.BookmarksPicker.SetStatus("Failed to load bookmarks")
+			a.chatView.BookmarksPicker.SetStatus("Failed to load bookmarks (ensure bookmarks:read scope is granted)")
 		})
 		return
 	}

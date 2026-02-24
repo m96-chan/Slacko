@@ -17,7 +17,8 @@ import (
 )
 
 // UserScopes is the set of OAuth user scopes required by Slacko.
-const UserScopes = "channels:history,channels:read,channels:write,chat:write," +
+const UserScopes = "bookmarks:read," +
+	"channels:history,channels:read,channels:write,chat:write," +
 	"emoji:read,files:read,files:write," +
 	"groups:history,groups:read,groups:write," +
 	"im:history,im:read,im:write," +
