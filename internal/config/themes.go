@@ -39,6 +39,7 @@ func defaultTheme() Theme {
 			Channel:  makeStyle("white", "", ""),
 			Selected: makeStyle("green", "", "b"),
 			Unread:   makeStyle("white", "", "b"),
+			Muted:    makeStyle("gray", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("white", "", ""),
@@ -111,6 +112,7 @@ func darkTheme() Theme {
 			Channel:  makeStyle("#bcbcbc", "", ""),
 			Selected: makeStyle("#5f87ff", "", "b"),
 			Unread:   makeStyle("#eeeeee", "", "b"),
+			Muted:    makeStyle("#585858", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("#eeeeee", "", ""),
@@ -183,6 +185,7 @@ func lightTheme() Theme {
 			Channel:  makeStyle("#3a3a3a", "", ""),
 			Selected: makeStyle("#0087af", "", "b"),
 			Unread:   makeStyle("#1c1c1c", "", "b"),
+			Muted:    makeStyle("#a8a8a8", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("#1c1c1c", "", ""),
@@ -255,6 +258,7 @@ func monokaiTheme() Theme {
 			Channel:  makeStyle("#f8f8f2", "", ""),
 			Selected: makeStyle("#66d9ef", "", "b"),
 			Unread:   makeStyle("#a6e22e", "", "b"),
+			Muted:    makeStyle("#75715e", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("#f8f8f2", "", ""),
@@ -327,6 +331,7 @@ func solarizedDarkTheme() Theme {
 			Channel:  makeStyle("#839496", "", ""),
 			Selected: makeStyle("#268bd2", "", "b"),
 			Unread:   makeStyle("#eee8d5", "", "b"),
+			Muted:    makeStyle("#586e75", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("#839496", "", ""),
@@ -399,6 +404,7 @@ func solarizedLightTheme() Theme {
 			Channel:  makeStyle("#657b83", "", ""),
 			Selected: makeStyle("#268bd2", "", "b"),
 			Unread:   makeStyle("#073642", "", "b"),
+			Muted:    makeStyle("#93a1a1", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("#657b83", "", ""),
@@ -472,6 +478,7 @@ func highContrastTheme() Theme {
 			Channel:  makeStyle("white", "", ""),
 			Selected: makeStyle("white", "", "br"),
 			Unread:   makeStyle("yellow", "", "b"),
+			Muted:    makeStyle("white", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("white", "", ""),
@@ -545,6 +552,7 @@ func monochromeTheme() Theme {
 			Channel:  makeStyle("", "", ""),
 			Selected: makeStyle("", "", "r"),
 			Unread:   makeStyle("", "", "b"),
+			Muted:    makeStyle("", "", "d"),
 		},
 		MessagesList: MessagesListTheme{
 			Message:          makeStyle("", "", ""),

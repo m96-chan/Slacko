@@ -177,6 +177,10 @@ attributes = "bold"
 foreground = "white"
 attributes = "bold"
 
+[theme.channels_tree.muted]
+foreground = "gray"
+attributes = "dim"
+
 [theme.messages_list]
 [theme.messages_list.message]
 foreground = "white"

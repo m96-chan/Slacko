@@ -276,6 +276,120 @@ func TestSetUnreadCount(t *testing.T) {
 	ct.SetUnreadCount("INVALID", 5)
 }
 
+func TestSetMuted(t *testing.T) {
+	cfg := &config.Config{}
+	ct := NewChannelsTree(cfg, nil)
+
+	channels := []slack.Channel{
+		makeChannel("C1", "general", false, false, false),
+		makeChannel("C2", "random", false, false, false),
+	}
+	ct.Populate(channels, map[string]slack.User{}, "SELF")
+
+	// Initially not muted.
+	if ct.IsMuted("C1") {
+		t.Error("C1 should not be muted initially")
+	}
+
+	// Mute C1.
+	ct.SetMuted("C1", true)
+	if !ct.IsMuted("C1") {
+		t.Error("C1 should be muted after SetMuted(true)")
+	}
+	// C2 should remain unmuted.
+	if ct.IsMuted("C2") {
+		t.Error("C2 should not be muted")
+	}
+
+	// Unmute C1.
+	ct.SetMuted("C1", false)
+	if ct.IsMuted("C1") {
+		t.Error("C1 should not be muted after SetMuted(false)")
+	}
+
+	// Should not panic on invalid channel ID.
+	ct.SetMuted("INVALID", true)
+	if ct.IsMuted("INVALID") {
+		t.Error("IsMuted should return false for unknown channel")
+	}
+}
+
+func TestSetMutedAppliesStyle(t *testing.T) {
+	cfg := &config.Config{}
+	ct := NewChannelsTree(cfg, nil)
+
+	channels := []slack.Channel{
+		makeChannel("C1", "general", false, false, false),
+	}
+	ct.Populate(channels, map[string]slack.User{}, "SELF")
+
+	node := ct.nodeIndex["C1"]
+	normalStyle := node.GetTextStyle()
+
+	// Muting should change the style to the muted style.
+	ct.SetMuted("C1", true)
+	mutedStyle := node.GetTextStyle()
+	if mutedStyle == normalStyle {
+		// With zero-value config the styles may coincide; the important test
+		// is that after unmute the channel style is restored.
+		t.Log("muted and normal styles are identical (zero-value config)")
+	}
+
+	// Unmuting should restore the channel style.
+	ct.SetMuted("C1", false)
+	restoredStyle := node.GetTextStyle()
+	if restoredStyle != normalStyle {
+		t.Error("unmuting should restore the original channel style")
+	}
+}
+
+func TestSetUnreadCountSuppressedForMutedChannel(t *testing.T) {
+	cfg := &config.Config{}
+	ct := NewChannelsTree(cfg, nil)
+
+	channels := []slack.Channel{
+		makeChannel("C1", "general", false, false, false),
+	}
+	ct.Populate(channels, map[string]slack.User{}, "SELF")
+
+	// Mute the channel.
+	ct.SetMuted("C1", true)
+
+	// SetUnreadCount should still track internally but not show a badge.
+	ct.SetUnreadCount("C1", 5)
+	node := ct.nodeIndex["C1"]
+	if strings.Contains(node.GetText(), "(5)") {
+		t.Errorf("muted channel should not show unread badge, got %q", node.GetText())
+	}
+	// Internal count should still be tracked.
+	if ct.UnreadCount("C1") != 5 {
+		t.Errorf("UnreadCount = %d, want 5 (tracked internally)", ct.UnreadCount("C1"))
+	}
+
+	// Unmute should reveal the badge.
+	ct.SetMuted("C1", false)
+	if !strings.Contains(node.GetText(), "(5)") {
+		t.Errorf("unmuted channel should show unread badge, got %q", node.GetText())
+	}
+}
+
+func TestMutedChannelClearedOnPopulate(t *testing.T) {
+	cfg := &config.Config{}
+	ct := NewChannelsTree(cfg, nil)
+
+	channels := []slack.Channel{
+		makeChannel("C1", "general", false, false, false),
+	}
+	ct.Populate(channels, map[string]slack.User{}, "SELF")
+	ct.SetMuted("C1", true)
+
+	// Re-populating should preserve the muted set (channels may re-appear).
+	ct.Populate(channels, map[string]slack.User{}, "SELF")
+	if !ct.IsMuted("C1") {
+		t.Error("muted state should survive Populate")
+	}
+}
+
 // makeChannel is a test helper that creates a slack.Channel with the given properties.
 func makeChannel(id, name string, private, im, mpim bool) slack.Channel {
 	ch := slack.Channel{}

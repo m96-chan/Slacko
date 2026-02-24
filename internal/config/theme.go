@@ -221,6 +221,7 @@ type ChannelsTreeTheme struct {
 	Channel  StyleWrapper `toml:"channel"`
 	Selected StyleWrapper `toml:"selected"`
 	Unread   StyleWrapper `toml:"unread"`
+	Muted    StyleWrapper `toml:"muted"`
 }
 
 // MessagesListTheme configures the messages list styling.

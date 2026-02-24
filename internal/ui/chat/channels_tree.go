@@ -46,6 +46,7 @@ type ChannelsTree struct {
 	nodeIndex       map[string]*tview.TreeNode // channelID → node
 	channelIDs      map[*tview.TreeNode]string // node → channelID (reverse)
 	unreadCounts    map[string]int             // channelID → unread count
+	mutedSet        map[string]bool            // channelID → muted state
 	onSelected      OnChannelSelectedFunc
 	onCopyChannelID OnCopyChannelIDFunc
 }
@@ -58,6 +59,7 @@ func NewChannelsTree(cfg *config.Config, onSelected OnChannelSelectedFunc) *Chan
 		nodeIndex:    make(map[string]*tview.TreeNode),
 		channelIDs:   make(map[*tview.TreeNode]string),
 		unreadCounts: make(map[string]int),
+		mutedSet:     make(map[string]bool),
 		onSelected:   onSelected,
 	}
 
@@ -124,6 +126,13 @@ func (ct *ChannelsTree) Populate(channels []slack.Channel, users map[string]slac
 
 	for _, ch := range sorted {
 		ct.addChannelNode(ch, users, selfUserID)
+	}
+
+	// Re-apply muted styling to channels that were muted before repopulating.
+	for channelID := range ct.mutedSet {
+		if node, ok := ct.nodeIndex[channelID]; ok {
+			node.SetTextStyle(ct.cfg.Theme.ChannelsTree.Muted.Style)
+		}
 	}
 
 	// Set initial selection to the first channel node if one exists.
@@ -195,6 +204,8 @@ func (ct *ChannelsTree) SetUnread(channelID string, unread bool) {
 // count > 0: set bold style and show "(N)" badge.
 // count == 0: clear style and badge.
 // count == -1: increment existing count by 1.
+// For muted channels the count is tracked internally but the badge and
+// unread style are not applied; the node keeps its muted appearance.
 func (ct *ChannelsTree) SetUnreadCount(channelID string, count int) {
 	node, ok := ct.nodeIndex[channelID]
 	if !ok {
@@ -208,6 +219,16 @@ func (ct *ChannelsTree) SetUnreadCount(channelID string, count int) {
 	}
 
 	actual := ct.unreadCounts[channelID]
+
+	// Muted channels: track the count but keep the muted visual style.
+	if ct.mutedSet[channelID] {
+		node.SetText(stripBadge(node.GetText()))
+		if actual == 0 {
+			delete(ct.unreadCounts, channelID)
+		}
+		return
+	}
+
 	base := stripBadge(node.GetText())
 
 	if actual > 0 {
@@ -231,6 +252,39 @@ func stripBadge(text string) string {
 // UnreadCount returns the current unread count for a channel.
 func (ct *ChannelsTree) UnreadCount(channelID string) int {
 	return ct.unreadCounts[channelID]
+}
+
+// SetMuted marks a channel as muted or unmuted.
+// Muted channels are displayed with a dimmed style and their unread badge is
+// hidden. The internal unread count is still tracked so that unmuting restores
+// the correct badge.
+func (ct *ChannelsTree) SetMuted(channelID string, muted bool) {
+	node, ok := ct.nodeIndex[channelID]
+	if !ok {
+		return
+	}
+
+	if muted {
+		ct.mutedSet[channelID] = true
+		// Strip the unread badge (visual only – count stays in unreadCounts).
+		node.SetText(stripBadge(node.GetText()))
+		node.SetTextStyle(ct.cfg.Theme.ChannelsTree.Muted.Style)
+	} else {
+		delete(ct.mutedSet, channelID)
+		// Restore unread badge and style if there are pending unreads.
+		if count := ct.unreadCounts[channelID]; count > 0 {
+			base := stripBadge(node.GetText())
+			node.SetText(fmt.Sprintf("%s (%d)", base, count))
+			node.SetTextStyle(ct.cfg.Theme.ChannelsTree.Unread.Style)
+		} else {
+			node.SetTextStyle(ct.cfg.Theme.ChannelsTree.Channel.Style)
+		}
+	}
+}
+
+// IsMuted reports whether a channel is currently muted.
+func (ct *ChannelsTree) IsMuted(channelID string) bool {
+	return ct.mutedSet[channelID]
 }
 
 // handleInput processes c (collapse) and p (parent) keys.
