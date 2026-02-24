@@ -33,6 +33,7 @@ var builtinVimCommands = []VimCommand{
 	{Name: "members", Aliases: []string{"who"}, Description: "List channel members"},
 	{Name: "create-channel", Description: "Create a new channel"},
 	{Name: "invite", Description: "Invite user to channel"},
+	{Name: "group-dm", Aliases: []string{"gdm"}, Description: "Create group DM"},
 }
 
 // CommandBar is a vim-style command input shown at the bottom of the screen.

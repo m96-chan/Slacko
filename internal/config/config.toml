@@ -160,6 +160,14 @@ up = "Ctrl+P"
 down = "Ctrl+N"
 select = "Enter"
 
+[keybinds.group_dm_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+add = "Enter"
+remove = "Ctrl+D"
+confirm = "Ctrl+Enter"
+
 [theme]
 preset = "default"
 
