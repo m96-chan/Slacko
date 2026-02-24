@@ -478,6 +478,17 @@ func (c *Client) OpenConversation(userIDs []string) (*slack.Channel, error) {
 	return ch, err
 }
 
+// ListBookmarks returns all bookmarks for a channel.
+func (c *Client) ListBookmarks(channelID string) ([]slack.Bookmark, error) {
+	var bookmarks []slack.Bookmark
+	err := retryOnRateLimit(func() error {
+		var e error
+		bookmarks, e = c.api.ListBookmarks(channelID)
+		return e
+	})
+	return bookmarks, err
+}
+
 // safePrefix returns the first 10 characters of a token for error messages.
 func safePrefix(token string) string {
 	if len(token) <= 10 {

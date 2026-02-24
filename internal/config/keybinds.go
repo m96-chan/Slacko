@@ -22,20 +22,21 @@ type Keybinds struct {
 	StarredItems   string `toml:"starred_items"`
 	ChannelInfo    string `toml:"channel_info"`
 
-	ChannelsTree     ChannelsTreeKeybinds   `toml:"channels_tree"`
-	MessagesList     MessagesListKeybinds   `toml:"messages_list"`
-	MessageInput     MessageInputKeybinds   `toml:"message_input"`
-	ThreadView       ThreadViewKeybinds     `toml:"thread_view"`
-	ChannelsPicker   ChannelsPickerKeybinds `toml:"channels_picker"`
-	FilePicker       FilePickerKeybinds     `toml:"file_picker"`
-	SearchPicker     SearchPickerKeybinds   `toml:"search_picker"`
-	PinsPicker       PinsPickerKeybinds     `toml:"pins_picker"`
-	StarredPicker    StarredPickerKeybinds  `toml:"starred_picker"`
-	UserProfilePanel UserProfileKeybinds    `toml:"user_profile_panel"`
-	ChannelInfoPanel ChannelInfoKeybinds    `toml:"channel_info_panel"`
-	MembersPicker    MembersPickerKeybinds  `toml:"members_picker"`
-	InvitePicker     InvitePickerKeybinds   `toml:"invite_picker"`
-	GroupDMPicker    GroupDMPickerKeybinds  `toml:"group_dm_picker"`
+	ChannelsTree     ChannelsTreeKeybinds    `toml:"channels_tree"`
+	MessagesList     MessagesListKeybinds    `toml:"messages_list"`
+	MessageInput     MessageInputKeybinds    `toml:"message_input"`
+	ThreadView       ThreadViewKeybinds      `toml:"thread_view"`
+	ChannelsPicker   ChannelsPickerKeybinds  `toml:"channels_picker"`
+	FilePicker       FilePickerKeybinds      `toml:"file_picker"`
+	SearchPicker     SearchPickerKeybinds    `toml:"search_picker"`
+	PinsPicker       PinsPickerKeybinds      `toml:"pins_picker"`
+	StarredPicker    StarredPickerKeybinds   `toml:"starred_picker"`
+	BookmarksPicker  BookmarksPickerKeybinds `toml:"bookmarks_picker"`
+	UserProfilePanel UserProfileKeybinds     `toml:"user_profile_panel"`
+	ChannelInfoPanel ChannelInfoKeybinds     `toml:"channel_info_panel"`
+	MembersPicker    MembersPickerKeybinds   `toml:"members_picker"`
+	InvitePicker     InvitePickerKeybinds    `toml:"invite_picker"`
+	GroupDMPicker    GroupDMPickerKeybinds   `toml:"group_dm_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -118,6 +119,14 @@ type SearchPickerKeybinds struct {
 
 // PinsPickerKeybinds holds keybindings for the pinned messages picker popup.
 type PinsPickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
+}
+
+// BookmarksPickerKeybinds holds keybindings for the channel bookmarks picker popup.
+type BookmarksPickerKeybinds struct {
 	Close  string `toml:"close"`
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`

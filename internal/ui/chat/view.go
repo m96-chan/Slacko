@@ -38,6 +38,7 @@ type View struct {
 	FilePicker         *FilePicker
 	SearchPicker       *SearchPicker
 	PinsPicker         *PinsPicker
+	BookmarksPicker    *BookmarksPicker
 	StarredPicker      *StarredPicker
 	MembersPicker      *MembersPicker
 	UserProfilePanel   *UserProfilePanel
@@ -57,6 +58,7 @@ type View struct {
 	fileModal            tview.Primitive
 	searchModal          tview.Primitive
 	pinsModal            tview.Primitive
+	bookmarksModal       tview.Primitive
 	starredModal         tview.Primitive
 	membersModal         tview.Primitive
 	userProfileModal     tview.Primitive
@@ -70,6 +72,7 @@ type View struct {
 	onMarkRead           func()
 	onMarkAllRead        func()
 	onPinnedMessages     func()
+	onBookmarks          func()
 	onStarredItems       func()
 	onChannelInfo        func()
 	onChannelMembers     func()
@@ -80,6 +83,7 @@ type View struct {
 	filePickerVisible    bool
 	searchVisible        bool
 	pinsVisible          bool
+	bookmarksVisible     bool
 	starredVisible       bool
 	membersVisible       bool
 	userProfileVisible   bool
@@ -237,6 +241,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 		AddItem(tview.NewFlex().
 			AddItem(nil, 0, 1, false).
 			AddItem(v.PinsPicker, 80, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
+	// Bookmarks picker (modal overlay).
+	v.BookmarksPicker = NewBookmarksPicker(cfg)
+	v.BookmarksPicker.SetOnClose(func() {
+		v.HideBookmarksPicker()
+	})
+
+	// Centered modal wrapper for the bookmarks picker.
+	v.bookmarksModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.BookmarksPicker, 80, 0, true).
 			AddItem(nil, 0, 1, false),
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
@@ -513,7 +533,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal or command bar is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible || v.inviteVisible || v.groupDMVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.bookmarksVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible || v.channelCreateVisible || v.inviteVisible || v.groupDMVisible {
 		return event
 	}
 
@@ -661,6 +681,26 @@ func (v *View) ShowPinsPicker() {
 func (v *View) HidePinsPicker() {
 	v.pinsVisible = false
 	v.Pages.RemovePage("pins")
+	v.FocusPanel(v.activePanel)
+}
+
+// SetOnBookmarks sets the callback invoked when the user opens the bookmarks popup.
+func (v *View) SetOnBookmarks(fn func()) {
+	v.onBookmarks = fn
+}
+
+// ShowBookmarksPicker shows the channel bookmarks picker modal overlay.
+func (v *View) ShowBookmarksPicker() {
+	v.bookmarksVisible = true
+	v.BookmarksPicker.Reset()
+	v.Pages.AddPage("bookmarks", v.bookmarksModal, true, true)
+	v.app.SetFocus(v.BookmarksPicker.list)
+}
+
+// HideBookmarksPicker hides the channel bookmarks picker and restores focus.
+func (v *View) HideBookmarksPicker() {
+	v.bookmarksVisible = false
+	v.Pages.RemovePage("bookmarks")
 	v.FocusPanel(v.activePanel)
 }
 

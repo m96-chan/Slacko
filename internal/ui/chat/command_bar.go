@@ -29,6 +29,7 @@ var builtinVimCommands = []VimCommand{
 	{Name: "reconnect", Description: "Reconnect Socket Mode"},
 	{Name: "debug", Description: "Toggle debug logging"},
 	{Name: "set", Description: "Change config at runtime"},
+	{Name: "bookmarks", Description: "Show channel bookmarks"},
 	{Name: "workspace", Aliases: []string{"ws"}, Description: "Switch workspace"},
 	{Name: "members", Aliases: []string{"who"}, Description: "List channel members"},
 	{Name: "create-channel", Description: "Create a new channel"},
