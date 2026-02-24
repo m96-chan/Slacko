@@ -25,6 +25,7 @@ var builtinCommands = []SlashCommand{
 	{Name: "remind", Description: "Set a reminder", Usage: "/remind [what] [when]"},
 	{Name: "reminders", Description: "List active reminders", Usage: "/reminders"},
 	{Name: "me", Description: "Send an action message", Usage: "/me [action]"},
+	{Name: "create-channel", Description: "Create a new channel", Usage: "/create-channel"},
 	{Name: "logout", Description: "Log out and clear tokens", Usage: "/logout"},
 }
 
