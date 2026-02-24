@@ -154,6 +154,12 @@ up = "Ctrl+P"
 down = "Ctrl+N"
 select = "Enter"
 
+[keybinds.invite_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+
 [theme]
 preset = "default"
 

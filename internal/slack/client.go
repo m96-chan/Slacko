@@ -453,6 +453,31 @@ func (c *Client) CreateConversation(name string, isPrivate bool) (*slack.Channel
 	return ch, err
 }
 
+// InviteUsersToConversation invites one or more users to a conversation.
+func (c *Client) InviteUsersToConversation(channelID string, userIDs ...string) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := retryOnRateLimit(func() error {
+		var e error
+		ch, e = c.api.InviteUsersToConversation(channelID, userIDs...)
+		return e
+	})
+	return ch, err
+}
+
+// OpenConversation opens or creates a direct message or group DM conversation
+// with the given user IDs.
+func (c *Client) OpenConversation(userIDs []string) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := retryOnRateLimit(func() error {
+		var e error
+		ch, _, _, e = c.api.OpenConversation(&slack.OpenConversationParameters{
+			Users: userIDs,
+		})
+		return e
+	})
+	return ch, err
+}
+
 // safePrefix returns the first 10 characters of a token for error messages.
 func safePrefix(token string) string {
 	if len(token) <= 10 {

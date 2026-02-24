@@ -34,6 +34,7 @@ type Keybinds struct {
 	UserProfilePanel UserProfileKeybinds    `toml:"user_profile_panel"`
 	ChannelInfoPanel ChannelInfoKeybinds    `toml:"channel_info_panel"`
 	MembersPicker    MembersPickerKeybinds  `toml:"members_picker"`
+	InvitePicker     InvitePickerKeybinds   `toml:"invite_picker"`
 }
 
 // ChannelsTreeKeybinds holds keybindings for the channels tree panel.
@@ -148,6 +149,14 @@ type ChannelInfoKeybinds struct {
 
 // MembersPickerKeybinds holds keybindings for the channel members picker popup.
 type MembersPickerKeybinds struct {
+	Close  string `toml:"close"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Select string `toml:"select"`
+}
+
+// InvitePickerKeybinds holds keybindings for the invite user picker popup.
+type InvitePickerKeybinds struct {
 	Close  string `toml:"close"`
 	Up     string `toml:"up"`
 	Down   string `toml:"down"`

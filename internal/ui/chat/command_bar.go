@@ -32,6 +32,7 @@ var builtinVimCommands = []VimCommand{
 	{Name: "workspace", Aliases: []string{"ws"}, Description: "Switch workspace"},
 	{Name: "members", Aliases: []string{"who"}, Description: "List channel members"},
 	{Name: "create-channel", Description: "Create a new channel"},
+	{Name: "invite", Description: "Invite user to channel"},
 }
 
 // CommandBar is a vim-style command input shown at the bottom of the screen.
