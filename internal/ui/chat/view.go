@@ -39,6 +39,7 @@ type View struct {
 	SearchPicker     *SearchPicker
 	PinsPicker       *PinsPicker
 	StarredPicker    *StarredPicker
+	MembersPicker    *MembersPicker
 	UserProfilePanel *UserProfilePanel
 	ChannelInfoPanel *ChannelInfoPanel
 	CommandBar       *CommandBar
@@ -53,6 +54,7 @@ type View struct {
 	searchModal        tview.Primitive
 	pinsModal          tview.Primitive
 	starredModal       tview.Primitive
+	membersModal       tview.Primitive
 	userProfileModal   tview.Primitive
 	channelInfoModal   tview.Primitive
 	workspaceModal     tview.Primitive
@@ -62,6 +64,7 @@ type View struct {
 	onPinnedMessages   func()
 	onStarredItems     func()
 	onChannelInfo      func()
+	onChannelMembers   func()
 	channelsVisible    bool
 	threadVisible      bool
 	pickerVisible      bool
@@ -70,6 +73,7 @@ type View struct {
 	searchVisible      bool
 	pinsVisible        bool
 	starredVisible     bool
+	membersVisible     bool
 	userProfileVisible bool
 	channelInfoVisible bool
 	commandBarVisible  bool
@@ -237,6 +241,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 		AddItem(tview.NewFlex().
 			AddItem(nil, 0, 1, false).
 			AddItem(v.StarredPicker, 80, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
+	// Members picker (modal overlay).
+	v.MembersPicker = NewMembersPicker(cfg)
+	v.MembersPicker.SetOnClose(func() {
+		v.HideMembersPicker()
+	})
+
+	// Centered modal wrapper for the members picker.
+	v.membersModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.MembersPicker, 60, 0, true).
 			AddItem(nil, 0, 1, false),
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
@@ -417,7 +437,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal or command bar is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.userProfileVisible || v.channelInfoVisible || v.commandBarVisible || v.workspaceVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.commandBarVisible || v.workspaceVisible {
 		return event
 	}
 
@@ -580,6 +600,26 @@ func (v *View) ShowStarredPicker() {
 func (v *View) HideStarredPicker() {
 	v.starredVisible = false
 	v.Pages.RemovePage("starred")
+	v.FocusPanel(v.activePanel)
+}
+
+// SetOnChannelMembers sets the callback invoked when the user opens the channel members popup.
+func (v *View) SetOnChannelMembers(fn func()) {
+	v.onChannelMembers = fn
+}
+
+// ShowMembersPicker shows the channel members picker modal overlay.
+func (v *View) ShowMembersPicker() {
+	v.membersVisible = true
+	v.MembersPicker.Reset()
+	v.Pages.AddPage("members", v.membersModal, true, true)
+	v.app.SetFocus(v.MembersPicker.input)
+}
+
+// HideMembersPicker hides the channel members picker and restores focus.
+func (v *View) HideMembersPicker() {
+	v.membersVisible = false
+	v.Pages.RemovePage("members")
 	v.FocusPanel(v.activePanel)
 }
 

@@ -30,6 +30,7 @@ var builtinVimCommands = []VimCommand{
 	{Name: "debug", Description: "Toggle debug logging"},
 	{Name: "set", Description: "Change config at runtime"},
 	{Name: "workspace", Aliases: []string{"ws"}, Description: "Switch workspace"},
+	{Name: "members", Aliases: []string{"who"}, Description: "List channel members"},
 }
 
 // CommandBar is a vim-style command input shown at the bottom of the screen.

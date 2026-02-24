@@ -147,6 +147,12 @@ set_topic = "Rune[t]"
 set_purpose = "Rune[p]"
 leave = "Rune[l]"
 
+[keybinds.members_picker]
+close = "Escape"
+up = "Ctrl+P"
+down = "Ctrl+N"
+select = "Enter"
+
 [theme]
 preset = "default"
 
