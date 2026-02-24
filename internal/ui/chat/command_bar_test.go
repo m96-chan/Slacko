@@ -43,7 +43,7 @@ func TestCommandBarAutocomplete(t *testing.T) {
 		{"qu", false, "quit"},
 		{"the", false, "theme"},
 		{"le", false, "leave"},
-		{"command with space", true, ""},
+		{"unknown with space", true, ""},
 		{"xyz", true, ""},
 	}
 
@@ -206,5 +206,71 @@ func TestCommandBarReset(t *testing.T) {
 	}
 	if cb.histIdx != -1 {
 		t.Errorf("after Reset, histIdx = %d, want -1", cb.histIdx)
+	}
+}
+
+func TestCommandBarAutocompleteSetSubcommands(t *testing.T) {
+	cb := NewCommandBar(&config.Config{})
+	cb.SetSetOptionNames([]string{"mouse", "timestamps", "markdown", "typing", "presence", "date_separator"})
+
+	tests := []struct {
+		input     string
+		wantEmpty bool
+		wantHas   string
+	}{
+		{"set ", false, "set mouse"},
+		{"set m", false, "set mouse"},
+		{"set ma", false, "set markdown"},
+		{"set t", false, "set timestamps"},
+		{"set ty", false, "set typing"},
+		{"set d", false, "set date_separator"},
+		{"set p", false, "set presence"},
+		{"set xyz", true, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			matches := cb.autocomplete(tt.input)
+			if tt.wantEmpty && len(matches) > 0 {
+				t.Errorf("autocomplete(%q) returned %v, want empty", tt.input, matches)
+			}
+			if !tt.wantEmpty && len(matches) == 0 {
+				t.Errorf("autocomplete(%q) returned empty, want matches", tt.input)
+			}
+			if tt.wantHas != "" {
+				found := false
+				for _, m := range matches {
+					if m == tt.wantHas {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("autocomplete(%q) = %v, missing %q", tt.input, matches, tt.wantHas)
+				}
+			}
+		})
+	}
+}
+
+func TestCommandBarAutocompleteSetWithoutOptions(t *testing.T) {
+	cb := NewCommandBar(&config.Config{})
+	// No option names set -- should return nil for "set " subcommands.
+	matches := cb.autocomplete("set ")
+	if len(matches) > 0 {
+		t.Errorf("autocomplete('set ') without option names returned %v, want empty", matches)
+	}
+}
+
+func TestSetSetOptionNames(t *testing.T) {
+	cb := NewCommandBar(&config.Config{})
+	names := []string{"mouse", "timestamps"}
+	cb.SetSetOptionNames(names)
+
+	if len(cb.setOptionNames) != 2 {
+		t.Errorf("setOptionNames length = %d, want 2", len(cb.setOptionNames))
+	}
+	if cb.setOptionNames[0] != "mouse" {
+		t.Errorf("setOptionNames[0] = %q, want %q", cb.setOptionNames[0], "mouse")
 	}
 }

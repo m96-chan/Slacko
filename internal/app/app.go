@@ -486,6 +486,7 @@ func (a *App) showMain() {
 		a.chatView.HideCommandBar()
 		a.executeVimCommand(command, args)
 	})
+	a.chatView.CommandBar.SetSetOptionNames(RuntimeOptionNames())
 
 	// Wire channel info panel.
 	a.chatView.SetOnChannelInfo(func() {
@@ -1931,9 +1932,37 @@ func (a *App) executeVimCommand(command, args string) {
 		go a.toggleDebugLogging()
 	case "set":
 		if args == "" {
-			a.showCommandFeedback("Usage: :set [option] [value]")
-		} else {
-			a.showCommandFeedback("Runtime :set not yet implemented")
+			a.showCommandFeedback(ListRuntimeOptions(a.Config))
+			return
+		}
+
+		option, value, query, err := ParseSetCommand(args)
+		if err != nil {
+			a.showCommandFeedback("Error: " + err.Error())
+			return
+		}
+
+		if query {
+			msg, err := QueryOption(a.Config, option)
+			if err != nil {
+				a.showCommandFeedback("Error: " + err.Error())
+			} else {
+				a.showCommandFeedback(msg)
+			}
+			return
+		}
+
+		msg, err := ApplySetCommand(a.Config, option, value)
+		if err != nil {
+			a.showCommandFeedback("Error: " + err.Error())
+			return
+		}
+		a.showCommandFeedback(msg)
+
+		// Apply side effects for options that need immediate action.
+		switch option {
+		case "mouse":
+			a.tview.EnableMouse(a.Config.Mouse)
 		}
 	case "workspace":
 		a.populateWorkspacePicker()
