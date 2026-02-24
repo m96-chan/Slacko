@@ -53,6 +53,7 @@ func NewStarredPicker(cfg *config.Config) *StarredPicker {
 		AddItem(sp.list, 0, 1, true).
 		AddItem(sp.status, 1, 0, false)
 	sp.SetBorder(true).SetTitle(" Starred Messages ")
+	sp.SetInputCapture(sp.handleInput)
 
 	return sp
 }

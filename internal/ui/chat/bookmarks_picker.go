@@ -50,6 +50,7 @@ func NewBookmarksPicker(cfg *config.Config) *BookmarksPicker {
 		AddItem(bp.list, 0, 1, true).
 		AddItem(bp.status, 1, 0, false)
 	bp.SetBorder(true).SetTitle(" Channel Bookmarks ")
+	bp.SetInputCapture(bp.handleInput)
 
 	return bp
 }
