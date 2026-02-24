@@ -47,6 +47,9 @@ type OnCopyPermalinkFunc func(channelID, timestamp string)
 // OnUserProfileRequestFunc is called when the user wants to view a user's profile.
 type OnUserProfileRequestFunc func(userID string)
 
+// OnViewReactionsRequestFunc is called when the user wants to see who reacted.
+type OnViewReactionsRequestFunc func(channelID, timestamp string, reactions []slack.ItemReaction)
+
 // MessagesList displays conversation messages with selection and scrolling.
 type MessagesList struct {
 	*tview.TextView
@@ -72,6 +75,7 @@ type MessagesList struct {
 	onYank                  OnYankFunc
 	onCopyPermalink         OnCopyPermalinkFunc
 	onUserProfileRequest    OnUserProfileRequestFunc
+	onViewReactionsRequest  OnViewReactionsRequestFunc
 	lastReadTS              string // last-read timestamp for "New messages" separator
 }
 
@@ -186,6 +190,11 @@ func (ml *MessagesList) SetOnCopyPermalink(fn OnCopyPermalinkFunc) {
 // SetOnUserProfileRequest sets the callback for viewing a user's profile.
 func (ml *MessagesList) SetOnUserProfileRequest(fn OnUserProfileRequestFunc) {
 	ml.onUserProfileRequest = fn
+}
+
+// SetOnViewReactionsRequest sets the callback for viewing reaction users.
+func (ml *MessagesList) SetOnViewReactionsRequest(fn OnViewReactionsRequestFunc) {
+	ml.onViewReactionsRequest = fn
 }
 
 // SetPinnedMessages sets the full set of pinned message timestamps for the current channel.
@@ -677,6 +686,15 @@ func (ml *MessagesList) handleInput(event *tcell.EventKey) *tcell.EventKey {
 			msg := ml.messages[ml.selectedIdx]
 			if msg.User != "" {
 				ml.onUserProfileRequest(msg.User)
+				return nil
+			}
+		}
+
+	case ml.cfg.Keybinds.MessagesList.ViewReactions:
+		if ml.selectedIdx >= 0 && ml.selectedIdx < len(ml.messages) && ml.onViewReactionsRequest != nil {
+			msg := ml.messages[ml.selectedIdx]
+			if len(msg.Reactions) > 0 {
+				ml.onViewReactionsRequest(ml.channelID, msg.Timestamp, msg.Reactions)
 				return nil
 			}
 		}

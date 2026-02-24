@@ -27,58 +27,61 @@ type View struct {
 	cfg       *config.Config
 	StatusBar *StatusBar
 
-	ChannelsTree     *ChannelsTree
-	Header           *tview.TextView
-	MessagesList     *MessagesList
-	MessageInput     *MessageInput
-	MentionsList     *MentionsList
-	ThreadView       *ThreadView
-	ChannelsPicker   *ChannelsPicker
-	ReactionsPicker  *ReactionsPicker
-	FilePicker       *FilePicker
-	SearchPicker     *SearchPicker
-	PinsPicker       *PinsPicker
-	StarredPicker    *StarredPicker
-	MembersPicker    *MembersPicker
-	UserProfilePanel *UserProfilePanel
-	ChannelInfoPanel *ChannelInfoPanel
-	CommandBar       *CommandBar
-	WorkspacePicker  *WorkspacePicker
+	ChannelsTree       *ChannelsTree
+	Header             *tview.TextView
+	MessagesList       *MessagesList
+	MessageInput       *MessageInput
+	MentionsList       *MentionsList
+	ThreadView         *ThreadView
+	ChannelsPicker     *ChannelsPicker
+	ReactionsPicker    *ReactionsPicker
+	FilePicker         *FilePicker
+	SearchPicker       *SearchPicker
+	PinsPicker         *PinsPicker
+	StarredPicker      *StarredPicker
+	MembersPicker      *MembersPicker
+	UserProfilePanel   *UserProfilePanel
+	ChannelInfoPanel   *ChannelInfoPanel
+	ReactionUsersPanel *ReactionUsersPanel
+	CommandBar         *CommandBar
+	WorkspacePicker    *WorkspacePicker
 
-	outerFlex          *tview.Flex
-	contentFlex        *tview.Flex
-	mainFlex           *tview.Flex
-	pickerModal        tview.Primitive
-	reactionModal      tview.Primitive
-	fileModal          tview.Primitive
-	searchModal        tview.Primitive
-	pinsModal          tview.Primitive
-	starredModal       tview.Primitive
-	membersModal       tview.Primitive
-	userProfileModal   tview.Primitive
-	channelInfoModal   tview.Primitive
-	workspaceModal     tview.Primitive
-	activePanel        Panel
-	onMarkRead         func()
-	onMarkAllRead      func()
-	onPinnedMessages   func()
-	onStarredItems     func()
-	onChannelInfo      func()
-	onChannelMembers   func()
-	channelsVisible    bool
-	threadVisible      bool
-	pickerVisible      bool
-	reactionVisible    bool
-	filePickerVisible  bool
-	searchVisible      bool
-	pinsVisible        bool
-	starredVisible     bool
-	membersVisible     bool
-	userProfileVisible bool
-	channelInfoVisible bool
-	commandBarVisible  bool
-	workspaceVisible   bool
-	onSwitchWorkspace  func(workspaceID string)
+	outerFlex            *tview.Flex
+	contentFlex          *tview.Flex
+	mainFlex             *tview.Flex
+	pickerModal          tview.Primitive
+	reactionModal        tview.Primitive
+	fileModal            tview.Primitive
+	searchModal          tview.Primitive
+	pinsModal            tview.Primitive
+	starredModal         tview.Primitive
+	membersModal         tview.Primitive
+	userProfileModal     tview.Primitive
+	channelInfoModal     tview.Primitive
+	reactionUsersModal   tview.Primitive
+	workspaceModal       tview.Primitive
+	activePanel          Panel
+	onMarkRead           func()
+	onMarkAllRead        func()
+	onPinnedMessages     func()
+	onStarredItems       func()
+	onChannelInfo        func()
+	onChannelMembers     func()
+	channelsVisible      bool
+	threadVisible        bool
+	pickerVisible        bool
+	reactionVisible      bool
+	filePickerVisible    bool
+	searchVisible        bool
+	pinsVisible          bool
+	starredVisible       bool
+	membersVisible       bool
+	userProfileVisible   bool
+	channelInfoVisible   bool
+	reactionUsersVisible bool
+	commandBarVisible    bool
+	workspaceVisible     bool
+	onSwitchWorkspace    func(workspaceID string)
 }
 
 // New creates the main chat view with the full flex layout.
@@ -293,6 +296,22 @@ func New(app *tview.Application, cfg *config.Config) *View {
 			0, 2, true).
 		AddItem(nil, 0, 1, false)
 
+	// Reaction users panel (modal overlay).
+	v.ReactionUsersPanel = NewReactionUsersPanel(cfg)
+	v.ReactionUsersPanel.SetOnClose(func() {
+		v.HideReactionUsers()
+	})
+
+	// Centered modal wrapper for the reaction users panel.
+	v.reactionUsersModal = tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(v.ReactionUsersPanel, 50, 0, true).
+			AddItem(nil, 0, 1, false),
+			0, 2, true).
+		AddItem(nil, 0, 1, false)
+
 	// Workspace picker (modal overlay).
 	v.WorkspacePicker = NewWorkspacePicker(cfg)
 	v.WorkspacePicker.SetOnClose(func() {
@@ -437,7 +456,7 @@ func (v *View) HandleKey(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// When a modal or command bar is visible, all other keys go to its input.
-	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.commandBarVisible || v.workspaceVisible {
+	if v.pickerVisible || v.reactionVisible || v.filePickerVisible || v.searchVisible || v.pinsVisible || v.starredVisible || v.membersVisible || v.userProfileVisible || v.channelInfoVisible || v.reactionUsersVisible || v.commandBarVisible || v.workspaceVisible {
 		return event
 	}
 
@@ -650,6 +669,21 @@ func (v *View) ShowChannelInfo() {
 func (v *View) HideChannelInfo() {
 	v.channelInfoVisible = false
 	v.Pages.RemovePage("channelinfo")
+	v.FocusPanel(v.activePanel)
+}
+
+// ShowReactionUsers shows the reaction users panel modal overlay.
+func (v *View) ShowReactionUsers() {
+	v.reactionUsersVisible = true
+	v.ReactionUsersPanel.Reset()
+	v.Pages.AddPage("reactionusers", v.reactionUsersModal, true, true)
+	v.app.SetFocus(v.ReactionUsersPanel.content)
+}
+
+// HideReactionUsers hides the reaction users panel and restores focus.
+func (v *View) HideReactionUsers() {
+	v.reactionUsersVisible = false
+	v.Pages.RemovePage("reactionusers")
 	v.FocusPanel(v.activePanel)
 }
 
